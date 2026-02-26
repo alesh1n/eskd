@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Сканер штрих‑кодов</title>
+    <style>
+      :root { font-family: Inter, system-ui, sans-serif; }
+      body {
+        margin: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .app {
+        width: min(720px, 100%);
+        background: #111827;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+      }
+      h1 { margin-top: 0; font-size: 1.4rem; }
+      p { color: #cbd5e1; }
+      .preview {
+        width: 100%;
+        aspect-ratio: 16/9;
+        background: #020617;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #1e293b;
+        margin: 14px 0;
+        position: relative;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .scan-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 2px;
+        background: #22d3ee;
+        box-shadow: 0 0 12px #22d3ee;
+      }
+      .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        background: #0ea5e9;
+        border: 0;
+        color: #082f49;
+        font-weight: 700;
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .result {
+        margin-top: 14px;
+        background: #0b1220;
+        border: 1px solid #233247;
+        border-radius: 10px;
+        padding: 12px;
+      }
+      code {
+        word-break: break-all;
+        font-size: 1rem;
+      }
+      .small { font-size: 0.9rem; color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>Сканер штрих‑кодов с веб‑камеры</h1>
+      <p>Нажми «Старт», разреши доступ к камере и поднеси штрих‑код в центр экрана.</p>
+
+      <section class="preview">
+        <video id="video" autoplay muted playsinline></video>
+        <div class="scan-line"></div>
+      </section>
+
+      <div class="controls">
+        <button id="startBtn">Старт</button>
+        <button id="stopBtn" disabled>Стоп</button>
+      </div>
+
+      <section class="result">
+        <div><strong>Последний результат:</strong></div>
+        <code id="output">Пока ничего не считано</code>
+        <div id="meta" class="small"></div>
+      </section>
+
+      <p class="small">Работает в браузерах с поддержкой BarcodeDetector API (например, Chrome/Edge).</p>
+    </main>
+
+    <script>
+      const video = document.getElementById('video');
+      const output = document.getElementById('output');
+      const meta = document.getElementById('meta');
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+
+      let stream = null;
+      let detector = null;
+      let scanning = false;
+      let rafId = null;
+
+      const formatTimestamp = () =>
+        new Date().toLocaleTimeString('ru-RU', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+
+      async function startScanner() {
+        if (!('BarcodeDetector' in window)) {
+          output.textContent = 'BarcodeDetector API не поддерживается в этом браузере';
+          return;
+        }
+
+        detector = new BarcodeDetector({
+          formats: [
+            'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128',
+            'code_39', 'codabar', 'itf', 'qr_code'
+          ]
+        });
+
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false
+          });
+          video.srcObject = stream;
+          await video.play();
+
+          scanning = true;
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          output.textContent = 'Идёт сканирование...';
+          meta.textContent = '';
+          scanLoop();
+        } catch (err) {
+          output.textContent = `Ошибка доступа к камере: ${err.message}`;
+        }
+      }
+
+      async function scanLoop() {
+        if (!scanning) return;
+
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes.length > 0) {
+            const code = barcodes[0];
+            output.textContent = code.rawValue;
+            meta.textContent = `Формат: ${code.format} · ${formatTimestamp()}`;
+          }
+        } catch {
+          // продолжаем цикл даже если отдельный кадр не удалось обработать
+        }
+
+        rafId = requestAnimationFrame(scanLoop);
+      }
+
+      function stopScanner() {
+        scanning = false;
+        if (rafId) cancelAnimationFrame(rafId);
+
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          stream = null;
+        }
+
+        video.srcObject = null;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+
+      startBtn.addEventListener('click', startScanner);
+      stopBtn.addEventListener('click', stopScanner);
+      window.addEventListener('beforeunload', stopScanner);
+    </script>
+  </body>
+</html>
