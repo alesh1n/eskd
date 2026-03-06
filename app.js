@@ -36,6 +36,11 @@ function showButtons(show) {
 
 function showRestart(show) {
   restartBtn.classList.toggle("hidden", !show);
+  if (show) {
+    requestAnimationFrame(() => {
+      restartBtn.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+  }
 }
 
 function askQuestion(node) {
