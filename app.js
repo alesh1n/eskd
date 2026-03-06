@@ -7,12 +7,21 @@ const restartBtn = document.getElementById("restartBtn");
 let tree = null;
 let currentNode = null;
 
+function scrollToLatest() {
+  const lastItem = chat.lastElementChild;
+  if (!lastItem) return;
+
+  requestAnimationFrame(() => {
+    lastItem.scrollIntoView({ behavior: "smooth", block: "end" });
+  });
+}
+
 function addMessage(text, type) {
   const bubble = document.createElement("div");
   bubble.className = `message message-${type}`;
   bubble.textContent = text;
   chat.appendChild(bubble);
-  chat.scrollTop = chat.scrollHeight;
+  scrollToLatest();
 }
 
 function showButtons(show) {
@@ -22,7 +31,7 @@ function showButtons(show) {
   answers.classList.toggle("hidden", !show);
   yesBtn.disabled = !show;
   noBtn.disabled = !show;
-  chat.scrollTop = chat.scrollHeight;
+  scrollToLatest();
 }
 
 function showRestart(show) {
