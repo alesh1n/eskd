@@ -1,5 +1,7 @@
 ﻿const chat = document.getElementById("chat");
 const answers = document.getElementById("answers");
+const backRow = document.getElementById("backRow");
+const backBtn = document.getElementById("backBtn");
 const restartBtn = document.getElementById("restartBtn");
 
 let treeRoots = [];
@@ -7,14 +9,28 @@ let questionFlow = null;
 let activeFilters = [];
 let activeBranchPrefixes = null;
 let currentAnswerOptions = [];
+let historyStack = [];
 const nodeIndex = new Map();
+const pathIndex = new Map();
 
 function scrollToLatest() {
-  const lastItem = chat.lastElementChild;
-  if (!lastItem) return;
-
   requestAnimationFrame(() => {
-    lastItem.scrollIntoView({ behavior: "smooth", block: "end" });
+    requestAnimationFrame(() => {
+      const chatCanScroll = chat.scrollHeight > chat.clientHeight + 4;
+
+      if (chatCanScroll) {
+        chat.scrollTo({
+          top: chat.scrollHeight,
+          behavior: "smooth"
+        });
+        return;
+      }
+
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth"
+      });
+    });
   });
 }
 
@@ -22,10 +38,93 @@ function normalizeText(value) {
   return (value || "").toLowerCase().replace(/ё/g, "е");
 }
 
+function cloneFilters(filters) {
+  return filters.map((filter) => ({
+    includeAny: [...(filter.includeAny || [])],
+    excludeAny: [...(filter.excludeAny || [])]
+  }));
+}
+
+function updateControlState() {
+  const canGoBack = historyStack.length > 0;
+  backBtn.disabled = !canGoBack;
+  restartBtn.classList.toggle("hidden", !canGoBack);
+
+  if (!canGoBack) {
+    backRow.classList.add("hidden");
+    return;
+  }
+
+  chat.appendChild(backRow);
+  backRow.classList.remove("hidden");
+}
+
+function captureSnapshot() {
+  return {
+    messagesHtml: Array.from(chat.querySelectorAll(".message"))
+      .map((message) => message.outerHTML)
+      .join(""),
+    answersHtml: answers.innerHTML,
+    answersHidden: answers.classList.contains("hidden"),
+    currentAnswerOptions: [...currentAnswerOptions],
+    activeFilters: cloneFilters(activeFilters),
+    activeBranchPrefixes: activeBranchPrefixes ? [...activeBranchPrefixes] : null
+  };
+}
+
+function restoreSnapshot(snapshot) {
+  chat.innerHTML = snapshot.messagesHtml;
+  answers.innerHTML = snapshot.answersHtml;
+  currentAnswerOptions = [...snapshot.currentAnswerOptions];
+  activeFilters = cloneFilters(snapshot.activeFilters);
+  activeBranchPrefixes = snapshot.activeBranchPrefixes ? [...snapshot.activeBranchPrefixes] : null;
+
+  if (snapshot.answersHidden) {
+    answers.classList.add("hidden");
+    backRow.classList.add("hidden");
+  } else {
+    chat.appendChild(answers);
+    chat.appendChild(backRow);
+    answers.classList.remove("hidden");
+  }
+
+  scrollToLatest();
+  updateControlState();
+}
+
+function pushHistorySnapshot() {
+  historyStack.push(captureSnapshot());
+  updateControlState();
+}
+
+function goBack() {
+  if (historyStack.length === 0) {
+    return;
+  }
+
+  const snapshot = historyStack.pop();
+  restoreSnapshot(snapshot);
+}
+
 function addMessage(text, type) {
   const bubble = document.createElement("div");
   bubble.className = `message message-${type}`;
   bubble.textContent = text;
+  chat.appendChild(bubble);
+  scrollToLatest();
+}
+
+function addImageMessage(src, alt) {
+  const bubble = document.createElement("div");
+  bubble.className = "message message-image";
+
+  const image = document.createElement("img");
+  image.className = "result-image";
+  image.src = src;
+  image.alt = alt || "Изображение";
+  image.loading = "lazy";
+
+  bubble.appendChild(image);
   chat.appendChild(bubble);
   scrollToLatest();
 }
@@ -47,32 +146,31 @@ function setAnswerOptions(options) {
 function showButtons(show) {
   if (show) {
     chat.appendChild(answers);
+    chat.appendChild(backRow);
   }
 
   answers.classList.toggle("hidden", !show);
   scrollToLatest();
-}
-
-function showRestart(show) {
-  restartBtn.classList.toggle("hidden", !show);
-  if (show) {
-    requestAnimationFrame(() => {
-      restartBtn.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  }
+  updateControlState();
 }
 
 function showResult(node) {
-  addMessage(`Децимальный номер: ${node.code}`, "result");
-  addMessage(`Описание: ${node.description}`, "system");
+  addMessage("Ваш децимальный номер:", "system");
+  addMessage(node.code, "result");
+  if (node.image) {
+    addImageMessage(node.image, node.description);
+  }
+  const fullPath = pathIndex.get(node.code);
+  const fullDescription = fullPath && fullPath.length > 0
+    ? fullPath.join(" -> ")
+    : node.description;
+  addMessage(`Описание: ${fullDescription}`, "system");
   showButtons(false);
-  showRestart(true);
 }
 
 function showNotFound() {
   addMessage("Подходящий децимальный номер не найден", "result");
   showButtons(false);
-  showRestart(true);
 }
 
 function getChildren(node) {
@@ -80,10 +178,12 @@ function getChildren(node) {
   return Object.values(node.children).filter(Boolean);
 }
 
-function buildNodeIndex(nodes) {
+function buildNodeIndex(nodes, parentPath = []) {
   nodes.forEach((node) => {
     nodeIndex.set(node.code, node);
-    buildNodeIndex(getChildren(node));
+    const currentPath = [...parentPath, node.description].filter(Boolean);
+    pathIndex.set(node.code, currentPath);
+    buildNodeIndex(getChildren(node), currentPath);
   });
 }
 
@@ -280,8 +380,8 @@ function askTreeLevel(options) {
       return;
     }
 
-     askTreeLevel(children);
-     return;
+    askTreeLevel(children);
+    return;
   }
 
   addMessage(getTreeQuestionText(options), "system");
@@ -293,7 +393,6 @@ function askTreeLevel(options) {
     }))
   );
   showButtons(true);
-  showRestart(false);
 }
 
 function startTreeSelection() {
@@ -316,7 +415,6 @@ function askFlowQuestion(questionId) {
     }))
   );
   showButtons(true);
-  showRestart(false);
 }
 
 function handleFlowOption(option) {
@@ -364,6 +462,7 @@ function handleAnswerSelection(index) {
     return;
   }
 
+  pushHistorySnapshot();
   showButtons(false);
 
   if (option.type === "flow") {
@@ -376,14 +475,17 @@ function handleAnswerSelection(index) {
 
 function startDialog() {
   chat.innerHTML = "";
+  answers.innerHTML = "";
+  answers.classList.add("hidden");
+  backRow.classList.add("hidden");
   activeFilters = [];
   activeBranchPrefixes = null;
   currentAnswerOptions = [];
+  historyStack = [];
+  updateControlState();
 
   if (!questionFlow || treeRoots.length === 0) {
     addMessage("Не удалось загрузить данные классификатора", "system");
-    showButtons(false);
-    showRestart(false);
     return;
   }
 
@@ -413,8 +515,8 @@ Promise.all([
   })
   .catch(() => {
     addMessage("Ошибка загрузки данных классификатора", "system");
-    showButtons(false);
-    showRestart(false);
+    answers.classList.add("hidden");
+    updateControlState();
   });
 
 answers.addEventListener("click", (event) => {
@@ -426,4 +528,6 @@ answers.addEventListener("click", (event) => {
   handleAnswerSelection(Number(button.dataset.optionIndex));
 });
 
+backBtn.addEventListener("click", goBack);
 restartBtn.addEventListener("click", startDialog);
+updateControlState();
