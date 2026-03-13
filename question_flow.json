@@ -1,0 +1,647 @@
+﻿{
+  "start": "object_kind",
+  "questions": {
+    "object_kind": {
+      "text": "Что нужно классифицировать?",
+      "options": [
+        {
+          "label": "Деталь",
+          "userText": "Это деталь",
+          "branchPrefixes": ["71", "72", "73", "74", "75", "76"],
+          "next": "detail_family"
+        },
+        {
+          "label": "Сборка",
+          "userText": "Это сборка",
+          "branchPrefixes": ["30"],
+          "next": "assembly_family"
+        },
+        {
+          "label": "Документ",
+          "userText": "Это документ",
+          "filters": {
+            "includeAny": ["документ", "нормы", "правила", "требования", "методы"]
+          },
+          "next": "document_kind"
+        },
+        {
+          "label": "Другое",
+          "userText": "Это другое",
+          "next": "general_process"
+        }
+      ]
+    },
+    "detail_family": {
+      "text": "Какая деталь ближе по форме?",
+      "options": [
+        {
+          "label": "Обычное тело вращения",
+          "userText": "Это обычное тело вращения",
+          "branchPrefixes": ["71"],
+          "next": "rotation_surface"
+        },
+        {
+          "label": "Тело вращения специального типа",
+          "userText": "Это тело вращения специального типа",
+          "branchPrefixes": ["72"],
+          "next": "special_rotation_family"
+        },
+        {
+          "label": "Корпусная, плоская или трубная",
+          "userText": "Это корпусная, плоская или трубная деталь",
+          "branchPrefixes": ["73", "74"],
+          "next": "non_rotation_family"
+        },
+        {
+          "label": "Крепеж, оснастка или спецдеталь",
+          "userText": "Это крепеж, оснастка или специальная деталь",
+          "branchPrefixes": ["75", "76"],
+          "next": "special_detail_family"
+        }
+      ]
+    },
+    "rotation_surface": {
+      "text": "Какая наружная поверхность ближе по форме?",
+      "options": [
+        {
+          "label": "Цилиндрическая",
+          "userText": "Наружная поверхность цилиндрическая",
+          "branchPrefixes": ["711", "713", "715"],
+          "next": "rotation_ratio_cyl"
+        },
+        {
+          "label": "Коническая",
+          "userText": "Наружная поверхность коническая",
+          "branchPrefixes": ["712", "714", "716"],
+          "branchSuffixes": ["1"],
+          "next": "rotation_ratio_cone"
+        },
+        {
+          "label": "Криволинейная",
+          "userText": "Наружная поверхность криволинейная",
+          "branchPrefixes": ["712", "714", "716"],
+          "filters": {
+            "includeAny": ["криволин"]
+          },
+          "branchSuffixes": ["2"],
+          "next": "rotation_ratio_cone"
+        },
+        {
+          "label": "Комбинированная",
+          "userText": "Наружная поверхность комбинированная",
+          "branchPrefixes": ["712", "714", "716"],
+          "filters": {
+            "includeAny": ["комбинир"]
+          },
+          "next": "rotation_ratio_combined"
+        }
+      ]
+    },
+    "rotation_ratio_cyl": {
+      "text": "Как соотносится длина детали с диаметром?",
+      "options": [
+        {
+          "label": "Короткая: L до 0,5D",
+          "userText": "Деталь короткая: L до 0,5D",
+          "branchPrefixes": ["711"],
+          "next": "rotation_relief_cyl"
+        },
+        {
+          "label": "Средняя: L от 0,5D до 2D",
+          "userText": "Деталь средней длины: L от 0,5D до 2D",
+          "branchPrefixes": ["713"],
+          "next": "rotation_relief_cyl"
+        },
+        {
+          "label": "Длинная: L свыше 2D",
+          "userText": "Деталь длинная: L свыше 2D",
+          "branchPrefixes": ["715"],
+          "next": "rotation_relief_cyl"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "Соотношение L и D не уверен",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_ratio_cone": {
+      "text": "Как соотносится длина детали с диаметром?",
+      "options": [
+        {
+          "label": "Короткая: L до 0,5D",
+          "userText": "Деталь короткая: L до 0,5D",
+          "branchPrefixes": ["712"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Средняя: L от 0,5D до 2D",
+          "userText": "Деталь средней длины: L от 0,5D до 2D",
+          "branchPrefixes": ["714"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Длинная: L свыше 2D",
+          "userText": "Деталь длинная: L свыше 2D",
+          "branchPrefixes": ["716"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "Соотношение L и D не уверен",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_ratio_combined": {
+      "text": "Как соотносится длина детали с диаметром?",
+      "options": [
+        {
+          "label": "Короткая: L до 0,5D",
+          "userText": "Деталь короткая: L до 0,5D",
+          "branchPrefixes": ["712"],
+          "next": "rotation_relief_combined"
+        },
+        {
+          "label": "Средняя: L от 0,5D до 2D",
+          "userText": "Деталь средней длины: L от 0,5D до 2D",
+          "branchPrefixes": ["714"],
+          "next": "rotation_relief_combined"
+        },
+        {
+          "label": "Длинная: L свыше 2D",
+          "userText": "Деталь длинная: L свыше 2D",
+          "branchPrefixes": ["716"],
+          "next": "rotation_relief_combined"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "Соотношение L и D не уверен",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_relief_cyl": {
+      "text": "Какой признак лучше всего подходит?",
+      "options": [
+        {
+          "label": "Гладкая без наружной резьбы",
+          "userText": "Деталь гладкая без наружной резьбы",
+          "branchSuffixes": ["1"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Гладкая с наружной резьбой",
+          "userText": "Деталь гладкая с наружной резьбой",
+          "branchSuffixes": ["2"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Ступенчатая",
+          "userText": "Деталь ступенчатая",
+          "next": "rotation_step_kind"
+        },
+        {
+          "label": "С закрытыми уступами",
+          "userText": "Деталь с закрытыми уступами",
+          "next": "rotation_closed_kind"
+        }
+      ]
+    },
+    "rotation_step_kind": {
+      "text": "Какая ступенчатая форма ближе?",
+      "options": [
+        {
+          "label": "Односторонняя без наружной резьбы",
+          "userText": "Ступенчатая односторонняя без наружной резьбы",
+          "branchSuffixes": ["3"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Двухсторонняя без наружной резьбы",
+          "userText": "Ступенчатая двухсторонняя без наружной резьбы",
+          "branchSuffixes": ["4"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Ступенчатая с наружной резьбой",
+          "userText": "Ступенчатая с наружной резьбой",
+          "branchSuffixes": ["5"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "По типу ступенчатой формы не уверен",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_closed_kind": {
+      "text": "Есть ли наружная резьба на детали с закрытыми уступами?",
+      "options": [
+        {
+          "label": "Нет",
+          "userText": "На детали с закрытыми уступами нет наружной резьбы",
+          "branchSuffixes": ["6"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Да",
+          "userText": "На детали с закрытыми уступами есть наружная резьба",
+          "branchSuffixes": ["7"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "По наружной резьбе не уверен",
+          "next": "tree"
+        },
+        {
+          "label": "Пропустить",
+          "userText": "Пока пропущу этот вопрос",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_relief_combined": {
+      "text": "Какой вариант комбинированной формы ближе?",
+      "options": [
+        {
+          "label": "Без закрытых уступов, без наружной резьбы",
+          "userText": "Комбинированная форма без закрытых уступов и без наружной резьбы",
+          "branchSuffixes": ["3", "4"],
+          "next": "rotation_combined_open_kind"
+        },
+        {
+          "label": "Без закрытых уступов, с наружной резьбой",
+          "userText": "Комбинированная форма без закрытых уступов, с наружной резьбой",
+          "branchSuffixes": ["5"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "С закрытыми уступами, без наружной резьбы",
+          "userText": "Комбинированная форма с закрытыми уступами, без наружной резьбы",
+          "branchSuffixes": ["6"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "С закрытыми уступами, с наружной резьбой",
+          "userText": "Комбинированная форма с закрытыми уступами, с наружной резьбой",
+          "branchSuffixes": ["7"],
+          "next": "rotation_hole_type"
+        }
+      ]
+    },
+    "rotation_combined_open_kind": {
+      "text": "Если форма без закрытых уступов, какая ступенчатость ближе?",
+      "options": [
+        {
+          "label": "Односторонняя",
+          "userText": "Комбинированная форма односторонняя",
+          "branchSuffixes": ["3"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Двухсторонняя",
+          "userText": "Комбинированная форма двухсторонняя",
+          "branchSuffixes": ["4"],
+          "next": "rotation_hole_type"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "По ступенчатости не уверен",
+          "next": "tree"
+        },
+        {
+          "label": "Пропустить",
+          "userText": "Пока пропущу этот вопрос",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_hole_type": {
+      "text": "Что лучше описывает центральное отверстие?",
+      "options": [
+        {
+          "label": "Отверстия нет",
+          "userText": "Центрального отверстия нет",
+          "branchSuffixes": ["1"],
+          "next": "tree"
+        },
+        {
+          "label": "Отверстие глухое",
+          "userText": "Есть центральное глухое отверстие",
+          "branchSuffixes": ["2", "3"],
+          "next": "rotation_blind_hole"
+        },
+        {
+          "label": "Отверстие сквозное круглое",
+          "userText": "Есть сквозное круглое отверстие",
+          "branchSuffixes": ["4", "5", "6", "7"],
+          "next": "rotation_through_hole"
+        },
+        {
+          "label": "Отверстие сквозное некруглое",
+          "userText": "Есть сквозное некруглое отверстие",
+          "branchSuffixes": ["9"],
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_blind_hole": {
+      "text": "Есть ли резьба в глухом отверстии?",
+      "options": [
+        {
+          "label": "Без резьбы",
+          "userText": "В глухом отверстии нет резьбы",
+          "branchSuffixes": ["2"],
+          "next": "tree"
+        },
+        {
+          "label": "С резьбой",
+          "userText": "В глухом отверстии есть резьба",
+          "branchSuffixes": ["3"],
+          "next": "tree"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "По резьбе в глухом отверстии не уверен",
+          "next": "tree"
+        },
+        {
+          "label": "Вернуться к общему выбору",
+          "userText": "Пока не могу уточнить тип отверстия",
+          "next": "tree"
+        }
+      ]
+    },
+    "rotation_through_hole": {
+      "text": "Какое сквозное круглое отверстие ближе по форме?",
+      "options": [
+        {
+          "label": "Цилиндрическое гладкое",
+          "userText": "Сквозное отверстие цилиндрическое гладкое",
+          "branchSuffixes": ["4"],
+          "next": "tree"
+        },
+        {
+          "label": "Цилиндрическое ступенчатое",
+          "userText": "Сквозное отверстие цилиндрическое ступенчатое",
+          "branchSuffixes": ["5"],
+          "next": "tree"
+        },
+        {
+          "label": "С резьбой",
+          "userText": "Сквозное отверстие с резьбой",
+          "branchSuffixes": ["6"],
+          "next": "tree"
+        },
+        {
+          "label": "Коническое или сложное",
+          "userText": "Сквозное отверстие коническое или сложной формы",
+          "branchSuffixes": ["7"],
+          "next": "tree"
+        }
+      ]
+    },
+    "special_rotation_family": {
+      "text": "Что точнее описывает деталь специального типа?",
+      "options": [
+        {
+          "label": "Зубчатая цилиндрическая",
+          "userText": "Это зубчатая цилиндрическая деталь",
+          "branchPrefixes": ["721"],
+          "next": "tree"
+        },
+        {
+          "label": "Коническая, червячная или комбинированная",
+          "userText": "Это коническая, червячная или комбинированная деталь",
+          "branchPrefixes": ["722"],
+          "next": "tree"
+        },
+        {
+          "label": "Труба, шланг, сектор, аэродеталь",
+          "userText": "Это труба, шланг, сектор или аэродеталь",
+          "branchPrefixes": ["723"],
+          "next": "tree"
+        },
+        {
+          "label": "Корпусная, емкостная или подшипниковая",
+          "userText": "Это корпусная, емкостная или подшипниковая деталь",
+          "branchPrefixes": ["724", "725", "726"],
+          "next": "special_rotation_subfamily"
+        }
+      ]
+    },
+    "special_rotation_subfamily": {
+      "text": "Какой подтип ближе всего?",
+      "options": [
+        {
+          "label": "Корпусная или опорная",
+          "userText": "Это корпусная или опорная деталь",
+          "branchPrefixes": ["724"],
+          "next": "tree"
+        },
+        {
+          "label": "Емкостная",
+          "userText": "Это емкостная деталь",
+          "branchPrefixes": ["725"],
+          "next": "tree"
+        },
+        {
+          "label": "Подшипниковая",
+          "userText": "Это подшипниковая деталь",
+          "branchPrefixes": ["726"],
+          "next": "tree"
+        },
+        {
+          "label": "Не уверен",
+          "userText": "По подтипу пока не уверен",
+          "next": "tree"
+        }
+      ]
+    },
+    "non_rotation_family": {
+      "text": "Что точнее описывает деталь?",
+      "options": [
+        {
+          "label": "Корпусная или емкостная",
+          "userText": "Это корпусная или емкостная деталь",
+          "branchPrefixes": ["73"],
+          "next": "tree"
+        },
+        {
+          "label": "Плоская или рычажная",
+          "userText": "Это плоская или рычажная деталь",
+          "branchPrefixes": ["74"],
+          "filters": {
+            "includeAny": ["плоск", "рычаж", "грузов", "тягов"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Из листа, полосы, ленты",
+          "userText": "Это деталь из листа, полосы или ленты",
+          "branchPrefixes": ["74"],
+          "filters": {
+            "includeAny": ["лист", "полос", "лент"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Труба или профиль",
+          "userText": "Это труба или профиль",
+          "branchPrefixes": ["74"],
+          "filters": {
+            "includeAny": ["труб", "профиль"]
+          },
+          "next": "tree"
+        }
+      ]
+    },
+    "special_detail_family": {
+      "text": "Что точнее описывает деталь?",
+      "options": [
+        {
+          "label": "Крепеж или уплотнение",
+          "userText": "Это крепежная или уплотнительная деталь",
+          "branchPrefixes": ["75"],
+          "filters": {
+            "includeAny": ["крепеж", "уплотн"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Пружина, ручка, арматура",
+          "userText": "Это пружина, ручка или арматура",
+          "branchPrefixes": ["75"],
+          "filters": {
+            "includeAny": ["пружин", "ручк", "арматур"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Технологическая оснастка",
+          "userText": "Это деталь технологической оснастки",
+          "branchPrefixes": ["76"],
+          "next": "tree"
+        },
+        {
+          "label": "Другое",
+          "userText": "Это другой специальный тип детали",
+          "next": "tree"
+        }
+      ]
+    },
+    "assembly_family": {
+      "text": "Какая сборка ближе по назначению?",
+      "options": [
+        {
+          "label": "Передача или привод",
+          "userText": "Это сборка передачи или привода",
+          "branchPrefixes": ["30"],
+          "filters": {
+            "includeAny": ["передач", "привод", "редукт", "муфт"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Корпусной узел",
+          "userText": "Это корпусной сборочный узел",
+          "branchPrefixes": ["30"],
+          "filters": {
+            "includeAny": ["корпус", "станин", "рам", "кроншт"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Гидро/пневмо/трубопроводный узел",
+          "userText": "Это гидро-, пневмо- или трубопроводный узел",
+          "branchPrefixes": ["30", "49"],
+          "filters": {
+            "includeAny": ["гидр", "пневм", "трубопровод", "арматур", "клапан"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Другое",
+          "userText": "Это другой тип сборки",
+          "branchPrefixes": ["30"],
+          "next": "tree"
+        }
+      ]
+    },
+    "document_kind": {
+      "text": "Какой документ нужен?",
+      "options": [
+        {
+          "label": "Свойства и характеристики",
+          "userText": "Нужен документ по свойствам и характеристикам",
+          "filters": {
+            "includeAny": ["свойства", "характеристик"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Контроль и приемка",
+          "userText": "Нужен документ по контролю и приемке",
+          "filters": {
+            "includeAny": ["контроль", "приемк"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Монтаж и эксплуатация",
+          "userText": "Нужен документ по монтажу и эксплуатации",
+          "filters": {
+            "includeAny": ["монтаж", "эксплуатац", "ремонт"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Материалы, упаковка, хранение",
+          "userText": "Нужен документ по материалам, упаковке или хранению",
+          "filters": {
+            "includeAny": ["материал", "упаков", "хранени", "транспортир"]
+          },
+          "next": "tree"
+        }
+      ]
+    },
+    "general_process": {
+      "text": "Какой тип объекта или процесса ближе всего?",
+      "options": [
+        {
+          "label": "Оборудование обработки резанием",
+          "userText": "Ближе к оборудованию обработки резанием",
+          "branchPrefixes": ["04"],
+          "filters": {
+            "includeAny": ["резанием", "станки", "сверлиль", "фрезер", "токарн", "шлифов"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Пресс, штамповка, литье",
+          "userText": "Ближе к прессу, штамповке или литью",
+          "branchPrefixes": ["04"],
+          "filters": {
+            "includeAny": ["пресс", "штампов", "лить", "формов", "ковоч"]
+          },
+          "next": "tree"
+        },
+        {
+          "label": "Измерение, контроль, автоматика",
+          "userText": "Ближе к измерению, контролю или автоматике",
+          "branchPrefixes": ["40", "41", "42"],
+          "next": "tree"
+        },
+        {
+          "label": "Электрика, привод, сварка",
+          "userText": "Ближе к электрике, приводу или сварке",
+          "branchPrefixes": ["43", "52", "64", "67", "68"],
+          "next": "tree"
+        }
+      ]
+    }
+  }
+}
