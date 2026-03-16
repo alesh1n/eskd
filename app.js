@@ -1,6 +1,6 @@
 ﻿const chat = document.getElementById("chat");
 const answers = document.getElementById("answers");
-const backRow = document.getElementById("backRow");
+const navRow = document.getElementById("navRow");
 const backBtn = document.getElementById("backBtn");
 const restartBtn = document.getElementById("restartBtn");
 
@@ -51,12 +51,12 @@ function updateControlState() {
   restartBtn.classList.toggle("hidden", !canGoBack);
 
   if (!canGoBack) {
-    backRow.classList.add("hidden");
+    navRow.classList.add("hidden");
     return;
   }
 
-  chat.appendChild(backRow);
-  backRow.classList.remove("hidden");
+  chat.appendChild(navRow);
+  navRow.classList.remove("hidden");
 }
 
 function captureSnapshot() {
@@ -81,10 +81,8 @@ function restoreSnapshot(snapshot) {
 
   if (snapshot.answersHidden) {
     answers.classList.add("hidden");
-    backRow.classList.add("hidden");
   } else {
     chat.appendChild(answers);
-    chat.appendChild(backRow);
     answers.classList.remove("hidden");
   }
 
@@ -146,7 +144,6 @@ function setAnswerOptions(options) {
 function showButtons(show) {
   if (show) {
     chat.appendChild(answers);
-    chat.appendChild(backRow);
   }
 
   answers.classList.toggle("hidden", !show);
@@ -477,7 +474,7 @@ function startDialog() {
   chat.innerHTML = "";
   answers.innerHTML = "";
   answers.classList.add("hidden");
-  backRow.classList.add("hidden");
+  navRow.classList.add("hidden");
   activeFilters = [];
   activeBranchPrefixes = null;
   currentAnswerOptions = [];

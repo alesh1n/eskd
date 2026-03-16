@@ -135,25 +135,24 @@ body {
   border-radius: 14px;
 }
 
-.controls {
+.nav-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 4px 0;
-  background: transparent;
+  gap: 12px;
+  padding: 6px 0 0;
 }
 
-.back-row {
+.chat > .nav-row {
+  align-self: stretch;
+  width: 100%;
+}
+
+.back-slot {
+  margin-left: auto;
+  width: min(720px, 100%);
   display: flex;
   justify-content: flex-end;
-  padding: 6px 6px 0;
-}
-
-.chat > .back-row {
-  align-self: flex-end;
-  width: min(720px, 100%);
 }
 
 .answers {
@@ -176,7 +175,7 @@ body {
   animation: message-in 620ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
 }
 
-.chat > .back-row {
+.chat > .nav-row {
   animation: message-in 620ms cubic-bezier(0.16, 1, 0.3, 1) 170ms both;
 }
 
@@ -289,16 +288,15 @@ body {
     align-items: stretch;
   }
 
-  .controls {
-    justify-content: flex-end;
-    padding: 10px 0 0;
-  }
-
-  .back-row {
+  .nav-row {
     padding: 6px 0 0;
   }
 
-  .chat > .back-row {
+  .chat > .nav-row {
+    width: 100%;
+  }
+
+  .back-slot {
     width: 100%;
   }
 
@@ -315,7 +313,4 @@ body {
     width: 100%;
   }
 
-  .controls .btn {
-    width: auto;
-  }
 }
