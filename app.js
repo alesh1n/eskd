@@ -6,12 +6,226 @@ const restartBtn = document.getElementById("restartBtn");
 
 let treeRoots = [];
 let questionFlow = null;
+let adaptiveRules = {};
 let activeFilters = [];
 let activeBranchPrefixes = null;
+let activeFeatureAnswers = {};
 let currentAnswerOptions = [];
 let historyStack = [];
 const nodeIndex = new Map();
 const pathIndex = new Map();
+const parentIndex = new Map();
+
+const featureCatalog71 = {
+  has_center_hole: {
+    question: "Есть ли центральное отверстие?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть центральное отверстие",
+    falseUserText: "Центрального отверстия нет"
+  },
+  has_face_ring_grooves: {
+    question: "Есть ли кольцевые пазы на торцах?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть кольцевые пазы на торцах",
+    falseUserText: "Кольцевых пазов на торцах нет"
+  },
+  has_outer_slots_or_splines: {
+    question: "Есть ли пазы или шлицы на наружной поверхности?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть пазы или шлицы на наружной поверхности",
+    falseUserText: "Пазов и шлицев на наружной поверхности нет"
+  },
+  has_off_axis_holes: {
+    question: "Есть ли отверстия вне оси детали?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть отверстия вне оси детали",
+    falseUserText: "Отверстий вне оси детали нет"
+  },
+  is_blind_hole: {
+    question: "Центральное отверстие глухое?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Центральное отверстие глухое",
+    falseUserText: "Центральное отверстие не глухое"
+  },
+  has_thread_in_hole: {
+    question: "Есть ли резьба в центральном отверстии?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть резьба в центральном отверстии",
+    falseUserText: "Резьбы в центральном отверстии нет"
+  },
+  is_stepped_hole: {
+    question: "Центральное отверстие ступенчатое?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Центральное отверстие ступенчатое",
+    falseUserText: "Центральное отверстие не ступенчатое"
+  },
+  is_round_hole: {
+    question: "Центральное отверстие круглое?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Центральное отверстие круглое",
+    falseUserText: "Центральное отверстие некруглое"
+  }
+};
+
+function normalizeDescriptionText(value) {
+  let text = normalizeText(value);
+  const replacements = [
+    [/отв\./g, "отверстие"],
+    [/центр\./g, "центральное"],
+    [/нар\./g, "наружной"],
+    [/пов\./g, "поверхности"],
+    [/дет\./g, "детали"],
+    [/круг\./g, "круглое"],
+    [/некругл\./g, "некруглое"],
+    [/конич\./g, "конической"],
+    [/криволин\./g, "криволинейной"],
+    [/комбинир\./g, "комбинированной"],
+    [/закр\./g, "закрытыми"],
+    [/резьб\./g, "резьбой"],
+    [/пазами и\/или шлицами/g, "пазами шлицами"],
+    [/пазов и\/или шлицев/g, "пазов шлицев"],
+    [/шлицев|шлицами|шлицам|шлицы/g, "шлицы"],
+    [/паз\./g, "пазы"],
+    [/l/g, "l"]
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/\s*([,;|])\s*/g, " $1 ")
+    .trim();
+}
+
+function setFeatureValue(target, key, value) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(target, key)) {
+    target[key] = value;
+  }
+}
+
+function parseEskdClauses(pathSegments) {
+  const clauses = [];
+  const seen = new Set();
+
+  pathSegments.forEach((segment) => {
+    const normalizedSegment = normalizeDescriptionText(segment);
+    const parts = normalizedSegment
+      .split(/[,;]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    [normalizedSegment, ...parts].forEach((clause) => {
+      if (!clause || seen.has(clause)) {
+        return;
+      }
+
+      seen.add(clause);
+      clauses.push(clause);
+    });
+  });
+
+  return clauses;
+}
+
+function mapClauseToFeatures(clause, features) {
+  if (/без центральн\w* отверст/.test(clause)) {
+    setFeatureValue(features, "has_center_hole", false);
+  }
+
+  if (/центральн\w* глух\w* отверст/.test(clause) || /глух\w* отверст/.test(clause)) {
+    setFeatureValue(features, "has_center_hole", true);
+    setFeatureValue(features, "is_blind_hole", true);
+  }
+
+  if (/центральн\w* сквоз\w* отверст/.test(clause) || /сквоз\w* отверст/.test(clause)) {
+    setFeatureValue(features, "has_center_hole", true);
+    setFeatureValue(features, "is_blind_hole", false);
+  }
+
+  if (/центральн\w* отверст/.test(clause) && !/без центральн\w* отверст/.test(clause)) {
+    setFeatureValue(features, "has_center_hole", true);
+  }
+
+  if (/без резьб/.test(clause)) {
+    setFeatureValue(features, "has_thread_in_hole", false);
+  }
+
+  if (/с резьб/.test(clause) || /резьбов/.test(clause)) {
+    setFeatureValue(features, "has_thread_in_hole", true);
+  }
+
+  if (/ступенчат/.test(clause)) {
+    setFeatureValue(features, "is_stepped_hole", true);
+  }
+
+  if (/гладк/.test(clause)) {
+    setFeatureValue(features, "is_stepped_hole", false);
+  }
+
+  if (/некругл/.test(clause)) {
+    setFeatureValue(features, "is_round_hole", false);
+  }
+
+  if (/кругл/.test(clause) && !/некругл/.test(clause)) {
+    setFeatureValue(features, "is_round_hole", true);
+  }
+
+  if (/без кольцев\w* паз\w* на торц/.test(clause)) {
+    setFeatureValue(features, "has_face_ring_grooves", false);
+  }
+
+  if (/с кольцев\w* паз\w* на торц/.test(clause)) {
+    setFeatureValue(features, "has_face_ring_grooves", true);
+  }
+
+  if (
+    /без паз\w* и шлиц\w* на наружн\w* поверхност/.test(clause) ||
+    /без паз\w* на наружн\w* поверхност/.test(clause) ||
+    /без шлиц\w* на наружн\w* поверхност/.test(clause)
+  ) {
+    setFeatureValue(features, "has_outer_slots_or_splines", false);
+  }
+
+  if (
+    /с паз\w*(?: и\/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност/.test(clause) ||
+    /с шлиц\w* на наружн\w* поверхност/.test(clause)
+  ) {
+    setFeatureValue(features, "has_outer_slots_or_splines", true);
+  }
+
+  if (/без отверст\w* вне оси/.test(clause)) {
+    setFeatureValue(features, "has_off_axis_holes", false);
+  }
+
+  if (/с отверст\w* вне оси/.test(clause)) {
+    setFeatureValue(features, "has_off_axis_holes", true);
+  }
+}
+
+function extract71FeaturesFromPath(pathSegments) {
+  const features = {};
+  const clauses = parseEskdClauses(pathSegments);
+
+  clauses.forEach((clause) => {
+    mapClauseToFeatures(clause, features);
+  });
+
+  return features;
+}
 
 function scrollToLatest() {
   requestAnimationFrame(() => {
@@ -45,6 +259,193 @@ function cloneFilters(filters) {
   }));
 }
 
+function cloneFeatureAnswers(featureAnswers) {
+  return { ...featureAnswers };
+}
+
+function getNodesByCodes(codes) {
+  return codes
+    .map((code) => nodeIndex.get(code))
+    .filter(Boolean);
+}
+
+function evaluateAdaptiveSplit(features, items, candidateCodes, parentCode) {
+  let bestSplit = null;
+
+  Object.entries(features).forEach(([featureKey, feature]) => {
+    if (Object.prototype.hasOwnProperty.call(activeFeatureAnswers, featureKey)) {
+      return;
+    }
+
+    const trueCodes = [];
+    const falseCodes = [];
+    let hasUnknown = false;
+
+    candidateCodes.forEach((code) => {
+      const value = items[code]?.[featureKey];
+      if (value === true) {
+        trueCodes.push(code);
+      } else if (value === false) {
+        falseCodes.push(code);
+      } else {
+        hasUnknown = true;
+      }
+    });
+
+    if (hasUnknown || trueCodes.length === 0 || falseCodes.length === 0) {
+      return;
+    }
+
+    const balance = Math.abs(trueCodes.length - falseCodes.length);
+    const split = {
+      parentCode,
+      featureKey,
+      feature,
+      trueCodes,
+      falseCodes,
+      balance
+    };
+
+    if (!bestSplit || split.balance < bestSplit.balance) {
+      bestSplit = split;
+    }
+  });
+
+  return bestSplit;
+}
+
+function getSharedParentCode(nodes) {
+  const parentCodes = [...new Set(nodes.map((node) => parentIndex.get(node.code)).filter(Boolean))];
+  return parentCodes.length === 1 ? parentCodes[0] : null;
+}
+
+function getHeuristic71Split(nodes) {
+  if (!nodes.every((node) => node.code.startsWith("71"))) {
+    return null;
+  }
+
+  const candidateCodes = nodes.map((node) => node.code);
+  const items = {};
+
+  nodes.forEach((node) => {
+    items[node.code] = extract71FeaturesFromPath(pathIndex.get(node.code) || []);
+  });
+
+  return evaluateAdaptiveSplit(featureCatalog71, items, candidateCodes, getSharedParentCode(nodes) || "71");
+}
+
+function getAdaptiveSplit(nodes) {
+  const parentCode = getSharedParentCode(nodes);
+  const candidateCodes = nodes.map((node) => node.code);
+
+  if (parentCode) {
+    const rule = adaptiveRules[parentCode];
+    if (rule && rule.features && rule.items && candidateCodes.every((code) => rule.items[code])) {
+      const explicitSplit = evaluateAdaptiveSplit(rule.features, rule.items, candidateCodes, parentCode);
+      if (explicitSplit) {
+        return explicitSplit;
+      }
+    }
+  }
+
+  return getHeuristic71Split(nodes);
+}
+
+function getFeatureDefinition(featureKey) {
+  if (featureCatalog71[featureKey]) {
+    return featureCatalog71[featureKey];
+  }
+
+  for (const rule of Object.values(adaptiveRules)) {
+    if (rule?.features?.[featureKey]) {
+      return rule.features[featureKey];
+    }
+  }
+
+  return null;
+}
+
+function getFeatureValueForNode(node, featureKey) {
+  const parentCode = parentIndex.get(node.code);
+  const explicitValue = parentCode ? adaptiveRules[parentCode]?.items?.[node.code]?.[featureKey] : undefined;
+  if (explicitValue === true || explicitValue === false) {
+    return explicitValue;
+  }
+
+  if (node.code.startsWith("71")) {
+    return extract71FeaturesFromPath(pathIndex.get(node.code) || [])[featureKey];
+  }
+
+  return undefined;
+}
+
+function applyActiveFeatureAnswers(nodes) {
+  const entries = Object.entries(activeFeatureAnswers);
+  if (entries.length === 0) {
+    return nodes;
+  }
+
+  const filteredNodes = nodes.filter((node) => (
+    entries.every(([featureKey, expectedValue]) => {
+      const actualValue = getFeatureValueForNode(node, featureKey);
+      return actualValue === undefined || actualValue === expectedValue;
+    })
+  ));
+
+  return filteredNodes.length > 0 ? filteredNodes : nodes;
+}
+
+function askAdaptiveQuestion(nodes) {
+  const split = getAdaptiveSplit(nodes);
+  if (!split) {
+    return false;
+  }
+
+  addMessage(split.feature.question, "system");
+  setAnswerOptions([
+    {
+      type: "adaptive",
+      label: split.feature.trueLabel || "Да",
+      userText: split.feature.trueUserText || split.feature.trueLabel || "Да",
+      candidateCodes: split.trueCodes,
+      featureConstraints: {
+        [split.featureKey]: true
+      }
+    },
+    {
+      type: "adaptive",
+      label: split.feature.falseLabel || "Нет",
+      userText: split.feature.falseUserText || split.feature.falseLabel || "Нет",
+      candidateCodes: split.falseCodes,
+      featureConstraints: {
+        [split.featureKey]: false
+      }
+    }
+  ]);
+  showButtons(true);
+  return true;
+}
+
+function continueAdaptiveSelection(candidateCodes) {
+  const candidateNodes = applyActiveFeatureAnswers(getNodesByCodes(candidateCodes));
+
+  if (candidateNodes.length === 0) {
+    showNotFound();
+    return;
+  }
+
+  if (candidateNodes.length === 1) {
+    showResult(candidateNodes[0]);
+    return;
+  }
+
+  if (askAdaptiveQuestion(candidateNodes)) {
+    return;
+  }
+
+  askTreeLevel(candidateNodes);
+}
+
 function updateControlState() {
   const canGoBack = historyStack.length > 0;
   backBtn.disabled = !canGoBack;
@@ -65,11 +466,12 @@ function captureSnapshot() {
       .map((message) => message.outerHTML)
       .join(""),
     answersHtml: answers.innerHTML,
-    answersHidden: answers.classList.contains("hidden"),
-    currentAnswerOptions: [...currentAnswerOptions],
-    activeFilters: cloneFilters(activeFilters),
-    activeBranchPrefixes: activeBranchPrefixes ? [...activeBranchPrefixes] : null
-  };
+      answersHidden: answers.classList.contains("hidden"),
+      currentAnswerOptions: [...currentAnswerOptions],
+      activeFilters: cloneFilters(activeFilters),
+      activeBranchPrefixes: activeBranchPrefixes ? [...activeBranchPrefixes] : null,
+      activeFeatureAnswers: cloneFeatureAnswers(activeFeatureAnswers)
+    };
 }
 
 function restoreSnapshot(snapshot) {
@@ -78,6 +480,7 @@ function restoreSnapshot(snapshot) {
   currentAnswerOptions = [...snapshot.currentAnswerOptions];
   activeFilters = cloneFilters(snapshot.activeFilters);
   activeBranchPrefixes = snapshot.activeBranchPrefixes ? [...snapshot.activeBranchPrefixes] : null;
+  activeFeatureAnswers = cloneFeatureAnswers(snapshot.activeFeatureAnswers || {});
 
   if (snapshot.answersHidden) {
     answers.classList.add("hidden");
@@ -175,12 +578,13 @@ function getChildren(node) {
   return Object.values(node.children).filter(Boolean);
 }
 
-function buildNodeIndex(nodes, parentPath = []) {
+function buildNodeIndex(nodes, parentPath = [], parentCode = null) {
   nodes.forEach((node) => {
     nodeIndex.set(node.code, node);
+    parentIndex.set(node.code, parentCode);
     const currentPath = [...parentPath, node.description].filter(Boolean);
     pathIndex.set(node.code, currentPath);
-    buildNodeIndex(getChildren(node), currentPath);
+    buildNodeIndex(getChildren(node), currentPath, node.code);
   });
 }
 
@@ -217,13 +621,51 @@ function applyBranchSuffixes(suffixes) {
   const expanded = [];
 
   activeBranchPrefixes.forEach((prefix) => {
+    const prefixNode = nodeIndex.get(prefix);
+    const children = getChildren(prefixNode);
+
     suffixes.forEach((suffix) => {
-      const code = `${prefix}${suffix}`;
-      if (nodeIndex.has(code)) {
-        expanded.push(code);
+      if (prefix.endsWith(suffix)) {
+        expanded.push(prefix);
+        return;
       }
+
+      const directChildCode = `${prefix}${suffix}`;
+      if (nodeIndex.has(directChildCode)) {
+        expanded.push(directChildCode);
+        return;
+      }
+
+      children.forEach((child) => {
+        if (child.code.endsWith(suffix)) {
+          expanded.push(child.code);
+        }
+      });
     });
   });
+
+  if (expanded.length === 0) {
+    const siblingMatches = [];
+
+    activeBranchPrefixes.forEach((prefix) => {
+      const parentCode = parentIndex.get(prefix);
+      const parentNode = parentCode ? nodeIndex.get(parentCode) : null;
+      const siblings = getChildren(parentNode);
+
+      siblings.forEach((sibling) => {
+        suffixes.forEach((suffix) => {
+          if (sibling.code.endsWith(suffix)) {
+            siblingMatches.push(sibling.code);
+          }
+        });
+      });
+    });
+
+    if (siblingMatches.length > 0) {
+      activeBranchPrefixes = [...new Set(siblingMatches)];
+      return;
+    }
+  }
 
   if (expanded.length > 0) {
     activeBranchPrefixes = [...new Set(expanded)];
@@ -310,11 +752,9 @@ function applyRestrictionsToRoots() {
   }
 
   if (branchNodes) {
-    addMessage("По уточняющим признакам совпадений не нашлось. Покажу ближайшие ветки выбранного раздела.", "system");
     return branchNodes;
   }
 
-  addMessage("По уточняющим признакам совпадений не нашлось. Покажу общие разделы.", "system");
   return treeRoots;
 }
 
@@ -363,6 +803,8 @@ function getTreeQuestionText(options) {
 }
 
 function askTreeLevel(options) {
+  options = applyActiveFeatureAnswers(options);
+
   if (!options || options.length === 0) {
     showNotFound();
     return;
@@ -378,6 +820,11 @@ function askTreeLevel(options) {
     }
 
     askTreeLevel(children);
+    return;
+  }
+
+  const areLeaves = options.every((node) => getChildren(node).length === 0);
+  if (areLeaves && askAdaptiveQuestion(options)) {
     return;
   }
 
@@ -432,6 +879,10 @@ function handleFlowOption(option) {
     });
   }
 
+  if (option.featureConstraints) {
+    Object.assign(activeFeatureAnswers, option.featureConstraints);
+  }
+
   if (!option.next || option.next === "tree") {
     startTreeSelection();
     return;
@@ -453,6 +904,14 @@ function handleTreeOption(option) {
   askTreeLevel(children);
 }
 
+function handleAdaptiveOption(option) {
+  addMessage(option.userText || option.label, "user");
+  if (option.featureConstraints) {
+    Object.assign(activeFeatureAnswers, option.featureConstraints);
+  }
+  continueAdaptiveSelection(option.candidateCodes || []);
+}
+
 function handleAnswerSelection(index) {
   const option = currentAnswerOptions[index];
   if (!option) {
@@ -467,6 +926,11 @@ function handleAnswerSelection(index) {
     return;
   }
 
+  if (option.type === "adaptive") {
+    handleAdaptiveOption(option);
+    return;
+  }
+
   handleTreeOption(option);
 }
 
@@ -477,6 +941,7 @@ function startDialog() {
   navRow.classList.add("hidden");
   activeFilters = [];
   activeBranchPrefixes = null;
+  activeFeatureAnswers = {};
   currentAnswerOptions = [];
   historyStack = [];
   updateControlState();
@@ -502,12 +967,19 @@ Promise.all([
       throw new Error("Не удалось загрузить question_flow.json");
     }
     return res.json();
+  }),
+  fetch("adaptive_rules.json").then((res) => {
+    if (!res.ok) {
+      throw new Error("Не удалось загрузить adaptive_rules.json");
+    }
+    return res.json();
   })
 ])
-  .then(([treeData, flowData]) => {
+  .then(([treeData, flowData, adaptiveData]) => {
     treeRoots = Object.values(treeData).filter(Boolean);
     buildNodeIndex(treeRoots);
     questionFlow = flowData;
+    adaptiveRules = adaptiveData || {};
     startDialog();
   })
   .catch(() => {

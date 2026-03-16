@@ -1,0 +1,105 @@
+{
+  "71341": {
+    "features": {
+      "has_face_ring_grooves": {
+        "question": "Есть ли кольцевые пазы на торцах?",
+        "trueLabel": "Да",
+        "falseLabel": "Нет",
+        "trueUserText": "Есть кольцевые пазы на торцах",
+        "falseUserText": "Кольцевых пазов на торцах нет"
+      },
+      "has_outer_slots_or_splines": {
+        "question": "Есть ли пазы или шлицы на наружной поверхности?",
+        "trueLabel": "Да",
+        "falseLabel": "Нет",
+        "trueUserText": "Есть пазы или шлицы на наружной поверхности",
+        "falseUserText": "Пазов и шлицев на наружной поверхности нет"
+      },
+      "has_off_axis_holes": {
+        "question": "Есть ли отверстия вне оси детали?",
+        "trueLabel": "Да",
+        "falseLabel": "Нет",
+        "trueUserText": "Есть отверстия вне оси детали",
+        "falseUserText": "Отверстий вне оси детали нет"
+      }
+    },
+    "items": {
+      "713411": {
+        "has_face_ring_grooves": false,
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": false
+      },
+      "713412": {
+        "has_face_ring_grooves": false,
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": true
+      },
+      "713413": {
+        "has_face_ring_grooves": false,
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": false
+      },
+      "713414": {
+        "has_face_ring_grooves": false,
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": true
+      },
+      "713415": {
+        "has_face_ring_grooves": true,
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": false
+      },
+      "713416": {
+        "has_face_ring_grooves": true,
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": true
+      },
+      "713417": {
+        "has_face_ring_grooves": true,
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": false
+      },
+      "713418": {
+        "has_face_ring_grooves": true,
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": true
+      }
+    }
+  },
+  "71623": {
+    "features": {
+      "has_outer_slots_or_splines": {
+        "question": "Есть ли пазы или шлицы на наружной поверхности?",
+        "trueLabel": "Да",
+        "falseLabel": "Нет",
+        "trueUserText": "Есть пазы или шлицы на наружной поверхности",
+        "falseUserText": "Пазов и шлицев на наружной поверхности нет"
+      },
+      "has_off_axis_holes": {
+        "question": "Есть ли отверстия вне оси детали?",
+        "trueLabel": "Да",
+        "falseLabel": "Нет",
+        "trueUserText": "Есть отверстия вне оси детали",
+        "falseUserText": "Отверстий вне оси детали нет"
+      }
+    },
+    "items": {
+      "716231": {
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": false
+      },
+      "716232": {
+        "has_outer_slots_or_splines": false,
+        "has_off_axis_holes": true
+      },
+      "716233": {
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": false
+      },
+      "716234": {
+        "has_outer_slots_or_splines": true,
+        "has_off_axis_holes": true
+      }
+    }
+  }
+}

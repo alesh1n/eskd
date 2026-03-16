@@ -67,12 +67,20 @@
           "label": "Цилиндрическая",
           "userText": "Наружная поверхность цилиндрическая",
           "branchPrefixes": ["711", "713", "715"],
+          "filters": {
+            "includeAny": ["цилиндр"],
+            "excludeAny": ["конич", "криволин", "комбинир"]
+          },
           "next": "rotation_ratio_cyl"
         },
         {
           "label": "Коническая",
           "userText": "Наружная поверхность коническая",
           "branchPrefixes": ["712", "714", "716"],
+          "filters": {
+            "includeAny": ["конич"],
+            "excludeAny": ["криволин", "комбинир"]
+          },
           "branchSuffixes": ["1"],
           "next": "rotation_ratio_cone"
         },
@@ -81,7 +89,8 @@
           "userText": "Наружная поверхность криволинейная",
           "branchPrefixes": ["712", "714", "716"],
           "filters": {
-            "includeAny": ["криволин"]
+            "includeAny": ["криволин"],
+            "excludeAny": ["конич", "комбинир"]
           },
           "branchSuffixes": ["2"],
           "next": "rotation_ratio_cone"
@@ -91,7 +100,8 @@
           "userText": "Наружная поверхность комбинированная",
           "branchPrefixes": ["712", "714", "716"],
           "filters": {
-            "includeAny": ["комбинир"]
+            "includeAny": ["комбинир"],
+            "excludeAny": ["конич", "криволин"]
           },
           "next": "rotation_ratio_combined"
         }
@@ -325,24 +335,41 @@
         {
           "label": "Отверстия нет",
           "userText": "Центрального отверстия нет",
+          "featureConstraints": {
+            "has_center_hole": false
+          },
           "branchSuffixes": ["1"],
           "next": "tree"
         },
         {
           "label": "Отверстие глухое",
           "userText": "Есть центральное глухое отверстие",
+          "featureConstraints": {
+            "has_center_hole": true,
+            "is_blind_hole": true
+          },
           "branchSuffixes": ["2", "3"],
           "next": "rotation_blind_hole"
         },
         {
           "label": "Отверстие сквозное круглое",
           "userText": "Есть сквозное круглое отверстие",
+          "featureConstraints": {
+            "has_center_hole": true,
+            "is_blind_hole": false,
+            "is_round_hole": true
+          },
           "branchSuffixes": ["4", "5", "6", "7"],
           "next": "rotation_through_hole"
         },
         {
           "label": "Отверстие сквозное некруглое",
           "userText": "Есть сквозное некруглое отверстие",
+          "featureConstraints": {
+            "has_center_hole": true,
+            "is_blind_hole": false,
+            "is_round_hole": false
+          },
           "branchSuffixes": ["9"],
           "next": "tree"
         }
@@ -354,12 +381,18 @@
         {
           "label": "Без резьбы",
           "userText": "В глухом отверстии нет резьбы",
+          "featureConstraints": {
+            "has_thread_in_hole": false
+          },
           "branchSuffixes": ["2"],
           "next": "tree"
         },
         {
           "label": "С резьбой",
           "userText": "В глухом отверстии есть резьба",
+          "featureConstraints": {
+            "has_thread_in_hole": true
+          },
           "branchSuffixes": ["3"],
           "next": "tree"
         },
@@ -381,24 +414,38 @@
         {
           "label": "Цилиндрическое гладкое",
           "userText": "Сквозное отверстие цилиндрическое гладкое",
+          "featureConstraints": {
+            "has_thread_in_hole": false,
+            "is_stepped_hole": false
+          },
           "branchSuffixes": ["4"],
           "next": "tree"
         },
         {
           "label": "Цилиндрическое ступенчатое",
           "userText": "Сквозное отверстие цилиндрическое ступенчатое",
+          "featureConstraints": {
+            "has_thread_in_hole": false,
+            "is_stepped_hole": true
+          },
           "branchSuffixes": ["5"],
           "next": "tree"
         },
         {
           "label": "С резьбой",
           "userText": "Сквозное отверстие с резьбой",
+          "featureConstraints": {
+            "has_thread_in_hole": true
+          },
           "branchSuffixes": ["6"],
           "next": "tree"
         },
         {
           "label": "Коническое или сложное",
           "userText": "Сквозное отверстие коническое или сложной формы",
+          "featureConstraints": {
+            "has_thread_in_hole": false
+          },
           "branchSuffixes": ["7"],
           "next": "tree"
         }
