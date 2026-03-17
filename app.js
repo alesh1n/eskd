@@ -725,7 +725,21 @@ function setAnswerOptions(options) {
       button.classList.add("btn-option-compact");
     }
     button.dataset.optionIndex = String(index);
-    button.textContent = option.label;
+
+    if (option.image) {
+      const preview = document.createElement("img");
+      preview.className = "option-image";
+      preview.src = option.image;
+      preview.alt = option.label;
+      preview.loading = "lazy";
+      button.appendChild(preview);
+    }
+
+    const label = document.createElement("span");
+    label.className = "option-label";
+    label.textContent = option.label;
+    button.appendChild(label);
+
     answers.appendChild(button);
   });
 }
@@ -1019,7 +1033,8 @@ function askTreeLevel(options) {
     options.map((node) => ({
       type: "tree",
       node,
-      label: `${node.code} — ${node.description}`
+      label: `${node.code} — ${node.description}`,
+      image: node.image
     }))
   );
   showButtons(true);

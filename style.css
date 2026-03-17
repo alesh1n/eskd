@@ -211,6 +211,9 @@ body {
   text-align: left;
   white-space: normal;
   line-height: 1.35;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .btn-option-compact {
@@ -218,6 +221,20 @@ body {
   min-width: 96px;
   align-self: auto;
   text-align: center;
+}
+
+.option-image {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex: 0 0 64px;
+  background: #f3f4f6;
+}
+
+.option-label {
+  display: block;
+  flex: 1;
 }
 
 .btn-quiet {
