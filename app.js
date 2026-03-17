@@ -714,11 +714,16 @@ function addImageMessage(src, alt) {
 function setAnswerOptions(options) {
   currentAnswerOptions = options;
   answers.innerHTML = "";
+  const isCompactSet = options.length > 0 && options.every((option) => (option.label || "").trim().length <= 8);
+  answers.classList.toggle("answers-compact", isCompactSet);
 
   options.forEach((option, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn btn-option";
+    if (isCompactSet) {
+      button.classList.add("btn-option-compact");
+    }
     button.dataset.optionIndex = String(index);
     button.textContent = option.label;
     answers.appendChild(button);
