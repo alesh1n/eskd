@@ -15,6 +15,7 @@ let historyStack = [];
 const nodeIndex = new Map();
 const pathIndex = new Map();
 const parentIndex = new Map();
+const DEBUG_ADAPTIVE = false;
 
 const featureCatalog71 = {
   has_center_hole: {
@@ -120,6 +121,7 @@ function setFeatureValue(target, key, value) {
 function parseEskdClauses(pathSegments) {
   const clauses = [];
   const seen = new Set();
+  const polarityBoundary = /\s+(?=(?:без|с)\s+(?:отверст\w*|паз\w*|шлиц\w*|кольцев\w*|резьб\w*|центр\w*))/g;
 
   pathSegments.forEach((segment) => {
     const normalizedSegment = normalizeDescriptionText(segment);
@@ -128,7 +130,22 @@ function parseEskdClauses(pathSegments) {
       .map((part) => part.trim())
       .filter(Boolean);
 
-    [normalizedSegment, ...parts].forEach((clause) => {
+    const expandedParts = [];
+
+    parts.forEach((part) => {
+      const splitParts = part
+        .split(polarityBoundary)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (splitParts.length > 0) {
+        expandedParts.push(...splitParts);
+      } else {
+        expandedParts.push(part);
+      }
+    });
+
+    [normalizedSegment, ...expandedParts].forEach((clause) => {
       if (!clause || seen.has(clause)) {
         return;
       }
@@ -139,6 +156,165 @@ function parseEskdClauses(pathSegments) {
   });
 
   return clauses;
+}
+
+function normalizeClauseToken(token) {
+  if (!token) {
+    return "";
+  }
+
+  const cleanToken = token.replace(/[.,?()"]/g, "");
+  if (cleanToken === "и/или") {
+    return "";
+  }
+
+  if (cleanToken.startsWith("паз")) return "паз";
+  if (cleanToken.startsWith("шлиц")) return "шлиц";
+  if (cleanToken.startsWith("наружн")) return "наружн";
+  if (cleanToken.startsWith("поверхност")) return "поверхност";
+  if (cleanToken.startsWith("отверст")) return "отверст";
+  if (cleanToken.startsWith("кольцев")) return "кольцев";
+  if (cleanToken.startsWith("торц")) return "торц";
+  if (cleanToken.startsWith("центр")) return "центр";
+  if (cleanToken.startsWith("глух")) return "глух";
+  if (cleanToken.startsWith("сквоз")) return "сквоз";
+  if (cleanToken.startsWith("резьб")) return "резьб";
+  if (cleanToken.startsWith("ступенчат")) return "ступенчат";
+  if (cleanToken.startsWith("гладк")) return "гладк";
+  if (cleanToken.startsWith("кругл")) return "кругл";
+  if (cleanToken.startsWith("некругл")) return "некругл";
+  if (cleanToken === "вне") return "вне";
+  if (cleanToken === "оси") return "оси";
+  if (cleanToken.startsWith("детал")) return "";
+  if (cleanToken.startsWith("одн")) return "";
+  if (cleanToken === "двух") return "";
+  if (cleanToken.startsWith("сторон")) return "";
+
+  return cleanToken;
+}
+
+function getClausePolarityDescriptor(clause) {
+  const trimmedClause = clause.trim();
+  if (trimmedClause.startsWith("без ")) {
+    return {
+      polarity: false,
+      body: trimmedClause.slice(4).trim()
+    };
+  }
+
+  if (trimmedClause.startsWith("с ")) {
+    return {
+      polarity: true,
+      body: trimmedClause.slice(2).trim()
+    };
+  }
+
+  return null;
+}
+
+function buildClauseCore(body) {
+  const stopWords = new Set(["и", "или", "и/или", "или/и", "на", "в", "по", "для", "от", "до", "со"]);
+
+  return body
+    .split(/\s+/)
+    .map((token) => normalizeClauseToken(token))
+    .filter((token) => token && !stopWords.has(token))
+    .join(" ");
+}
+
+function prettifyClauseBody(body) {
+  return body
+    .replace(/с отверст[а-я]*/g, "с отверстиями")
+    .replace(/без отверст[а-я]*/g, "без отверстий")
+    .replace(/отверст[а-я]* вне оси/g, "отверстиями вне оси")
+    .replace(/с паз[а-я]* шлиц[а-я]*/g, "с пазами или шлицами")
+    .replace(/без паз[а-я]* шлиц[а-я]*/g, "без пазов и шлицев")
+    .replace(/паз[а-я]* шлиц[а-я]*/g, "пазами или шлицами")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getDynamicClauseSplit(nodes) {
+  const candidateCodes = nodes.map((node) => node.code);
+  const clauseGroups = new Map();
+  nodes.forEach((node) => {
+    const clauses = parseEskdClauses(pathIndex.get(node.code) || []);
+
+    clauses.forEach((clause) => {
+      const descriptor = getClausePolarityDescriptor(clause);
+      if (!descriptor) {
+        return;
+      }
+
+      const core = buildClauseCore(descriptor.body);
+      if (!core) {
+        return;
+      }
+
+      if (!clauseGroups.has(core)) {
+        clauseGroups.set(core, {
+          positiveText: null,
+          negativeText: null,
+          values: {}
+        });
+      }
+
+      const group = clauseGroups.get(core);
+      group.values[node.code] = descriptor.polarity;
+
+      if (descriptor.polarity && !group.positiveText) {
+        group.positiveText = `с ${descriptor.body}`;
+      }
+
+      if (!descriptor.polarity && !group.negativeText) {
+        group.negativeText = `без ${descriptor.body}`;
+      }
+    });
+  });
+
+  let bestSplit = null;
+
+  clauseGroups.forEach((group, core) => {
+    const values = candidateCodes.map((code) => group.values[code]);
+    if (values.some((value) => value === undefined)) {
+      return;
+    }
+
+    const trueCodes = candidateCodes.filter((code) => group.values[code] === true);
+    const falseCodes = candidateCodes.filter((code) => group.values[code] === false);
+
+    if (trueCodes.length === 0 || falseCodes.length === 0) {
+      return;
+    }
+
+      const balance = Math.abs(trueCodes.length - falseCodes.length);
+      const questionBody = group.positiveText || group.negativeText;
+      const prettyQuestionBody = questionBody ? prettifyClauseBody(questionBody) : "";
+      const prettyPositiveBody = group.positiveText ? prettifyClauseBody(group.positiveText) : "";
+      const prettyNegativeBody = group.negativeText ? prettifyClauseBody(group.negativeText) : "";
+      const split = {
+        parentCode: getSharedParentCode(nodes) || "dynamic",
+        featureKey: `dynamic:${core}`,
+        feature: {
+          question: prettyQuestionBody
+            ? `Верно ли, что деталь ${prettyQuestionBody}?`
+            : "Какой признак лучше подходит?",
+          trueLabel: "Да",
+          falseLabel: "Нет",
+          trueUserText: prettyPositiveBody ? `Да, деталь ${prettyPositiveBody}` : "Да",
+          falseUserText: prettyNegativeBody ? `Нет, деталь ${prettyNegativeBody}` : "Нет"
+        },
+        trueCodes,
+        falseCodes,
+      balance
+    };
+
+      if (!bestSplit || split.balance < bestSplit.balance) {
+        bestSplit = split;
+      }
+    });
+
+  return bestSplit;
 }
 
 function mapClauseToFeatures(clause, features) {
@@ -335,6 +511,11 @@ function getHeuristic71Split(nodes) {
 }
 
 function getAdaptiveSplit(nodes) {
+  const dynamicSplit = getDynamicClauseSplit(nodes);
+  if (dynamicSplit) {
+    return dynamicSplit;
+  }
+
   const parentCode = getSharedParentCode(nodes);
   const candidateCodes = nodes.map((node) => node.code);
 
