@@ -18,6 +18,27 @@ const parentIndex = new Map();
 const DEBUG_ADAPTIVE = false;
 
 const featureCatalog71 = {
+  is_sphere: {
+    question: "Это шар?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Это шар",
+    falseUserText: "Это не шар"
+  },
+  is_hollow_sphere: {
+    question: "Шар полый?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Шар полый",
+    falseUserText: "Шар сплошной"
+  },
+  has_suspension_element: {
+    question: "Есть элемент для подвески?",
+    trueLabel: "Да",
+    falseLabel: "Нет",
+    trueUserText: "Есть элемент для подвески",
+    falseUserText: "Элемента для подвески нет"
+  },
   has_center_hole: {
     question: "Есть ли центральное отверстие?",
     trueLabel: "Да",
@@ -80,10 +101,15 @@ function normalizeDescriptionText(value) {
   let text = normalizeText(value);
   const replacements = [
     [/отв\./g, "отверстие"],
+    [/отв\b/g, "отверстие"],
     [/центр\./g, "центральное"],
     [/нар\./g, "наружной"],
     [/пов\./g, "поверхности"],
+    [/поверх\./g, "поверхности"],
     [/дет\./g, "детали"],
+    [/дет\b/g, "детали"],
+    [/кольц\./g, "кольцевыми"],
+    [/торц\./g, "торцах"],
     [/круг\./g, "круглое"],
     [/некругл\./g, "некруглое"],
     [/конич\./g, "конической"],
@@ -171,9 +197,9 @@ function normalizeClauseToken(token) {
   if (cleanToken.startsWith("паз")) return "паз";
   if (cleanToken.startsWith("шлиц")) return "шлиц";
   if (cleanToken.startsWith("наружн")) return "наружн";
-  if (cleanToken.startsWith("поверхност")) return "поверхност";
-  if (cleanToken.startsWith("отверст")) return "отверст";
-  if (cleanToken.startsWith("кольцев")) return "кольцев";
+  if (cleanToken.startsWith("поверхност") || cleanToken.startsWith("поверх")) return "поверхност";
+  if (cleanToken.startsWith("отверст") || cleanToken === "отв") return "отверст";
+  if (cleanToken.startsWith("кольцев") || cleanToken.startsWith("кольц")) return "кольцев";
   if (cleanToken.startsWith("торц")) return "торц";
   if (cleanToken.startsWith("центр")) return "центр";
   if (cleanToken.startsWith("глух")) return "глух";
@@ -183,9 +209,10 @@ function normalizeClauseToken(token) {
   if (cleanToken.startsWith("гладк")) return "гладк";
   if (cleanToken.startsWith("кругл")) return "кругл";
   if (cleanToken.startsWith("некругл")) return "некругл";
+  if (cleanToken.startsWith("шар")) return "шар";
   if (cleanToken === "вне") return "вне";
   if (cleanToken === "оси") return "оси";
-  if (cleanToken.startsWith("детал")) return "";
+  if (cleanToken.startsWith("дет")) return "";
   if (cleanToken.startsWith("одн")) return "";
   if (cleanToken === "двух") return "";
   if (cleanToken.startsWith("сторон")) return "";
@@ -209,17 +236,32 @@ function getClausePolarityDescriptor(clause) {
     };
   }
 
+  if (trimmedClause.startsWith("кроме ")) {
+    return {
+      polarity: false,
+      body: trimmedClause.slice(6).trim()
+    };
+  }
+
   return null;
 }
 
 function buildClauseCore(body) {
   const stopWords = new Set(["и", "или", "и/или", "или/и", "на", "в", "по", "для", "от", "до", "со"]);
 
-  return body
+  const core = body
     .split(/\s+/)
     .map((token) => normalizeClauseToken(token))
     .filter((token) => token && !stopWords.has(token))
     .join(" ");
+
+  return core
+    .replace(/пазов/g, "паз")
+    .replace(/пазами/g, "паз")
+    .replace(/шлицев/g, "шлиц")
+    .replace(/шлицами/g, "шлиц")
+    .replace(/кольцевых/g, "кольцев")
+    .replace(/кольцевыми/g, "кольцев");
 }
 
 function prettifyClauseBody(body) {
@@ -227,6 +269,8 @@ function prettifyClauseBody(body) {
     .replace(/с отверст[а-я]*/g, "с отверстиями")
     .replace(/без отверст[а-я]*/g, "без отверстий")
     .replace(/отверст[а-я]* вне оси/g, "отверстиями вне оси")
+    .replace(/с кольц[а-я]* паз[а-я]* на торц[а-я]*/g, "с кольцевыми пазами на торцах")
+    .replace(/без кольц[а-я]* паз[а-я]* на торц[а-я]*/g, "без кольцевых пазов на торцах")
     .replace(/с паз[а-я]* шлиц[а-я]*/g, "с пазами или шлицами")
     .replace(/без паз[а-я]* шлиц[а-я]*/g, "без пазов и шлицев")
     .replace(/паз[а-я]* шлиц[а-я]*/g, "пазами или шлицами")
@@ -322,6 +366,30 @@ function mapClauseToFeatures(clause, features) {
     setFeatureValue(features, "has_center_hole", false);
   }
 
+  if (/кроме шар\w*/.test(clause)) {
+    setFeatureValue(features, "is_sphere", false);
+  }
+
+  if (/шар\w*/.test(clause) && !/кроме шар\w*/.test(clause)) {
+    setFeatureValue(features, "is_sphere", true);
+  }
+
+  if (/сплошн\w*/.test(clause)) {
+    setFeatureValue(features, "is_hollow_sphere", false);
+  }
+
+  if (/пол\w*/.test(clause)) {
+    setFeatureValue(features, "is_hollow_sphere", true);
+  }
+
+  if (/без эл-?т\w* для подвески/.test(clause)) {
+    setFeatureValue(features, "has_suspension_element", false);
+  }
+
+  if (/с эл-?т\w* для подвески/.test(clause)) {
+    setFeatureValue(features, "has_suspension_element", true);
+  }
+
   if (/центральн\w* глух\w* отверст/.test(clause) || /глух\w* отверст/.test(clause)) {
     setFeatureValue(features, "has_center_hole", true);
     setFeatureValue(features, "is_blind_hole", true);
@@ -370,6 +438,7 @@ function mapClauseToFeatures(clause, features) {
 
   if (
     /без паз\w* и шлиц\w* на наружн\w* поверхност/.test(clause) ||
+    /без паз\w* шлиц\w* на наружн\w* поверхност/.test(clause) ||
     /без паз\w* на наружн\w* поверхност/.test(clause) ||
     /без шлиц\w* на наружн\w* поверхност/.test(clause)
   ) {
@@ -377,7 +446,7 @@ function mapClauseToFeatures(clause, features) {
   }
 
   if (
-    /с паз\w*(?: и\/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност/.test(clause) ||
+    /с паз\w*(?:,?\s*шлиц\w*| и\/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност/.test(clause) ||
     /с шлиц\w* на наружн\w* поверхност/.test(clause)
   ) {
     setFeatureValue(features, "has_outer_slots_or_splines", true);
@@ -447,6 +516,7 @@ function getNodesByCodes(codes) {
 
 function evaluateAdaptiveSplit(features, items, candidateCodes, parentCode) {
   let bestSplit = null;
+  const inferFalseWhenMissing = new Set(["has_face_ring_grooves"]);
 
   Object.entries(features).forEach(([featureKey, feature]) => {
     if (Object.prototype.hasOwnProperty.call(activeFeatureAnswers, featureKey)) {
@@ -467,6 +537,15 @@ function evaluateAdaptiveSplit(features, items, candidateCodes, parentCode) {
         hasUnknown = true;
       }
     });
+
+    if (hasUnknown && inferFalseWhenMissing.has(featureKey) && trueCodes.length > 0 && falseCodes.length === 0) {
+      candidateCodes.forEach((code) => {
+        if (items[code]?.[featureKey] === undefined) {
+          falseCodes.push(code);
+        }
+      });
+      hasUnknown = false;
+    }
 
     if (hasUnknown || trueCodes.length === 0 || falseCodes.length === 0) {
       return;
