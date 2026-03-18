@@ -10,10 +10,9 @@ from typing import Any
 
 
 FEATURE_CATALOG_71 = {
-    "is_sphere": {"question": "??? ????"},
-    "is_sphere": {"question": "??? ????"},
-    "is_hollow_sphere": {"question": "??? ??????"},
-    "has_suspension_element": {"question": "???? ??????? ??? ?????????"},
+    "is_sphere": {"question": "Это шар?"},
+    "is_hollow_sphere": {"question": "Шар полый?"},
+    "has_suspension_element": {"question": "Есть элемент для подвески?"},
     "has_center_hole": {"question": "Есть ли центральное отверстие?"},
     "has_face_ring_grooves": {"question": "Есть ли кольцевые пазы на торцах?"},
     "has_outer_slots_or_splines": {"question": "Есть ли пазы или шлицы на наружной поверхности?"},
@@ -60,32 +59,36 @@ def normalize_text(value: str) -> str:
 def normalize_description_text(value: str) -> str:
     text = normalize_text(value)
     replacements = [
-        (r"???\.", "?????????"),
-        (r"???", "?????????"),
-        (r"?????\.", "???????????"),
-        (r"???\.", "????????"),
-        (r"???\.", "???????????"),
-        (r"????????\.", "???????????"),
-        (r"???\.", "??????"),
-        (r"???", "??????"),
-        (r"?????\.", "??????????"),
-        (r"????\.", "??????"),
-        (r"????\.", "???????"),
-        (r"???????\.", "?????????"),
-        (r"?????\.", "??????????"),
-        (r"????????\.", "?????????????"),
-        (r"????????\.", "???????????????"),
-        (r"????\.", "?????????"),
-        (r"?????\.", "???????"),
-        (r"?????? ?/??? ???????", "?????? ???????"),
-        (r"????? ?/??? ??????", "????? ??????"),
-        (r"??????|???????|??????|?????", "?????"),
-        (r"???\.", "????"),
+        ("отв.", "отверстие"),
+        ("центр.", "центральное"),
+        ("нар.", "наружной"),
+        ("пов.", "поверхности"),
+        ("поверхн.", "поверхности"),
+        ("поверх.", "поверхности"),
+        ("дет.", "детали"),
+        ("кольц.", "кольцевыми"),
+        ("торц.", "торцах"),
+        ("круг.", "круглое"),
+        ("некругл.", "некруглое"),
+        ("конич.", "конической"),
+        ("криволин.", "криволинейной"),
+        ("комбинир.", "комбинированной"),
+        ("закр.", "закрытыми"),
+        ("резьб.", "резьбой"),
+        ("пазами и/или шлицами", "пазами шлицами"),
+        ("пазов и/или шлицев", "пазов шлицев"),
+        ("шлицев", "шлицы"),
+        ("шлицами", "шлицы"),
+        ("шлицам", "шлицы"),
+        ("паз.", "пазы"),
     ]
-    for pattern, replacement in replacements:
-        text = re.sub(pattern, replacement, text)
+    for old, new in replacements:
+        text = text.replace(old, new)
+
+    text = re.sub(r"\bотв\b", "отверстие", text)
+    text = re.sub(r"\bдет\b", "детали", text)
     text = re.sub(r"\s+", " ", text)
-    text = re.sub(r"\s*([,;|])\s*", r"  ", text)
+    text = re.sub(r"\s*([,;|])\s*", r" \1 ", text)
     return text.strip()
 
 
@@ -128,7 +131,6 @@ def normalize_clause_token(token: str) -> str:
         "поверхност": "поверхност",
         "поверх": "поверхност",
         "отверст": "отверст",
-        "отв": "отверст",
         "кольцев": "кольцев",
         "кольц": "кольцев",
         "торц": "торц",
@@ -141,7 +143,11 @@ def normalize_clause_token(token: str) -> str:
         "кругл": "кругл",
         "некругл": "некругл",
         "шар": "шар",
-        "дет": "",
+        "пол": "пол",
+        "сплошн": "сплошн",
+        "подвес": "подвеск",
+        "эл": "элемент",
+        "детал": "",
         "одн": "",
         "сторон": "",
     }
@@ -194,80 +200,80 @@ def set_feature_value(target: dict[str, bool], key: str, value: bool | None) -> 
 
 
 def map_clause_to_features(clause: str, features: dict[str, bool]) -> None:
-    if re.search("без центральн\w* отверст", clause):
+    if re.search(r"без центральн\w* отверст", clause):
         set_feature_value(features, "has_center_hole", False)
 
-    if re.search("кроме шар\w*", clause):
+    if re.search(r"кроме шар\w*", clause):
         set_feature_value(features, "is_sphere", False)
 
-    if re.search("шар\w*", clause) and not re.search("кроме шар\w*", clause):
+    if re.search(r"шар\w*", clause) and not re.search(r"кроме шар\w*", clause):
         set_feature_value(features, "is_sphere", True)
 
-    if re.search("сплошн\w*", clause):
+    if re.search(r"сплошн\w*", clause):
         set_feature_value(features, "is_hollow_sphere", False)
 
-    if re.search("пол\w*", clause):
+    if re.search(r"пол\w*", clause):
         set_feature_value(features, "is_hollow_sphere", True)
 
-    if re.search("без эл-?т\w* для подвески", clause):
+    if re.search(r"без эл-?т\w* для подвески", clause):
         set_feature_value(features, "has_suspension_element", False)
 
-    if re.search("с эл-?т\w* для подвески", clause):
+    if re.search(r"с эл-?т\w* для подвески", clause):
         set_feature_value(features, "has_suspension_element", True)
 
-    if re.search("центральн\w* глух\w* отверст", clause) or re.search("глух\w* отверст", clause):
+    if re.search(r"центральн\w* глух\w* отверст", clause) or re.search(r"глух\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
         set_feature_value(features, "is_blind_hole", True)
 
-    if re.search("центральн\w* сквоз\w* отверст", clause) or re.search("сквоз\w* отверст", clause):
+    if re.search(r"центральн\w* сквоз\w* отверст", clause) or re.search(r"сквоз\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
         set_feature_value(features, "is_blind_hole", False)
 
-    if re.search("центральн\w* отверст", clause) and not re.search("без центральн\w* отверст", clause):
+    if re.search(r"центральн\w* отверст", clause) and not re.search(r"без центральн\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
 
-    if re.search("без резьб", clause):
+    if re.search(r"без резьб", clause):
         set_feature_value(features, "has_thread_in_hole", False)
 
-    if re.search("с резьб", clause) or re.search("резьбов", clause):
+    if re.search(r"с резьб", clause) or re.search(r"резьбов", clause):
         set_feature_value(features, "has_thread_in_hole", True)
 
-    if re.search("ступенчат", clause):
+    if re.search(r"ступенчат", clause):
         set_feature_value(features, "is_stepped_hole", True)
 
-    if re.search("гладк", clause):
+    if re.search(r"гладк", clause):
         set_feature_value(features, "is_stepped_hole", False)
 
-    if re.search("некругл", clause):
+    if re.search(r"некругл", clause):
         set_feature_value(features, "is_round_hole", False)
 
-    if re.search("кругл", clause) and not re.search("некругл", clause):
+    if re.search(r"кругл", clause) and not re.search(r"некругл", clause):
         set_feature_value(features, "is_round_hole", True)
 
-    if re.search("без кольцев\w* паз\w* на торц", clause):
+    if re.search(r"без кольцев\w* паз\w* на торц", clause):
         set_feature_value(features, "has_face_ring_grooves", False)
 
-    if re.search("с кольцев\w* паз\w* на торц", clause):
+    if re.search(r"с кольцев\w* паз\w* на торц", clause):
         set_feature_value(features, "has_face_ring_grooves", True)
 
     if (
-        re.search("без паз\w* и шлиц\w* на наружн\w* поверхност", clause)
-        or re.search("без паз\w* шлиц\w* на наружн\w* поверхност", clause)
-        or re.search("без паз\w* на наружн\w* поверхност", clause)
-        or re.search("без шлиц\w* на наружн\w* поверхност", clause)
+        re.search(r"без паз\w* и шлиц\w* на наружн\w* поверхност", clause)
+        or re.search(r"без паз\w* шлиц\w* на наружн\w* поверхност", clause)
+        or re.search(r"без паз\w* на наружн\w* поверхност", clause)
+        or re.search(r"без шлиц\w* на наружн\w* поверхност", clause)
     ):
         set_feature_value(features, "has_outer_slots_or_splines", False)
 
     if (
-        re.search("с паз\w*(?:,?\s*шлиц\w*| и/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност", clause)
-        or re.search("с шлиц\w* на наружн\w* поверхност", clause)
+        re.search(r"с паз\w*(?:,?\s*шлиц\w*| и/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност", clause)
+        or re.search(r"с шлиц\w* на наружн\w* поверхност", clause)
     ):
         set_feature_value(features, "has_outer_slots_or_splines", True)
 
-    if re.search("без отверст\w* вне оси", clause):
+    if re.search(r"без отверст\w* вне оси", clause):
         set_feature_value(features, "has_off_axis_holes", False)
 
-    if re.search("с отверст\w* вне оси", clause):
+    if re.search(r"с отверст\w* вне оси", clause):
         set_feature_value(features, "has_off_axis_holes", True)
 
 
@@ -288,7 +294,7 @@ def load_tree(path: Path) -> tuple[list[Node], dict[str, Node], dict[str, str | 
 
     def build(node_data: dict[str, Any], parent_code: str | None = None, current_path: list[str] | None = None) -> Node:
         current_path = (current_path or []) + [node_data.get("description") or ""]
-        children = [build(child, node_data["code"], current_path) for child in (node_data.get("children") or {}).values()]
+        children = [build(child, str(node_data["code"]), current_path) for child in (node_data.get("children") or {}).values()]
         node = Node(
             code=str(node_data["code"]),
             description=node_data.get("description") or "",
@@ -302,11 +308,6 @@ def load_tree(path: Path) -> tuple[list[Node], dict[str, Node], dict[str, str | 
 
     roots = [build(value) for value in raw.values()]
     return roots, node_index, parent_index, path_index
-
-
-def load_adaptive_rules(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8-sig") as fh:
-        return json.load(fh)
 
 
 def evaluate_split(
@@ -359,12 +360,13 @@ def get_dynamic_clause_split(nodes: list[Node], path_index: dict[str, list[str]]
             descriptor = get_clause_descriptor(clause)
             if descriptor is None:
                 continue
+
             polarity, body = descriptor
             core = build_clause_core(body)
             if not core:
                 continue
 
-            group = clause_groups.setdefault(core, {"values": {}, "question": f"dynamic:{core}"})
+            group = clause_groups.setdefault(core, {"values": {}})
             group["values"][node.code] = polarity
 
     best_split = None
@@ -376,16 +378,18 @@ def get_dynamic_clause_split(nodes: list[Node], path_index: dict[str, list[str]]
 
         true_codes = [code for code in candidate_codes if group["values"][code] is True]
         false_codes = [code for code in candidate_codes if group["values"][code] is False]
+
         if not true_codes or not false_codes:
             continue
 
         split = {
             "feature_key": f"dynamic:{core}",
-            "question": group["question"],
+            "question": f"dynamic:{core}",
             "true_codes": true_codes,
             "false_codes": false_codes,
             "balance": abs(len(true_codes) - len(false_codes)),
         }
+
         if best_split is None or split["balance"] < best_split["balance"]:
             best_split = split
 
@@ -431,8 +435,8 @@ def resolve_group(
         dynamic_split = get_dynamic_clause_split(subset, path_index)
         explicit_split = get_explicit_split(subset, parent_code, adaptive_rules)
         heuristic_split = get_feature_split_71(subset, path_index)
-
         split = dynamic_split or explicit_split or heuristic_split
+
         if not split:
             unresolved.append(subset)
             continue
@@ -479,101 +483,70 @@ def is_service_branch(node: Node) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze unresolved manual code choice points in ESKD adaptive logic.")
     parser.add_argument("--root", default="71", help="Code prefix to analyze, default: 71")
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=50,
-        help="Maximum number of unresolved groups to print, default: 50",
-    )
-    parser.add_argument(
-        "--json",
-        dest="json_output",
-        default="",
-        help="Optional path to write full JSON report",
-    )
-    parser.add_argument(
-        "--include-service",
-        action="store_true",
-        help="Include service/normative branches in the report",
-    )
+    parser.add_argument("--limit", type=int, default=20, help="How many unresolved entries to print")
+    parser.add_argument("--json", dest="json_path", help="Optional path for JSON report")
+    parser.add_argument("--include-service", action="store_true", help="Keep service/normative branches in output")
     args = parser.parse_args()
 
-    base_dir = Path(__file__).resolve().parent.parent
-    _, node_index, _, path_index = load_tree(base_dir / "eskd_tree.json")
-    adaptive_rules = load_adaptive_rules(base_dir / "adaptive_rules.json")
+    project_root = Path(__file__).resolve().parent.parent
+    roots, node_index, _, path_index = load_tree(project_root / "eskd_tree.json")
 
-    roots = [node for code, node in node_index.items() if code.startswith(args.root)]
-    top_level = [node for node in roots if len(node.code) == len(args.root)]
-    if not top_level:
-        raise SystemExit(f"No nodes found for root prefix {args.root!r}")
+    with (project_root / "adaptive_rules.json").open(encoding="utf-8-sig") as fh:
+        adaptive_rules = json.load(fh)
 
-    choice_points: list[Node] = []
-    for node in top_level:
-        choice_points.extend(collect_leaf_choice_points(node))
+    choice_points = []
+    for root in roots:
+        choice_points.extend(collect_leaf_choice_points(root))
 
-    unresolved_report: list[dict[str, Any]] = []
-    resolved_count = 0
-    skipped_service = 0
+    analyzed = 0
+    skipped = 0
+    resolved = 0
+    unresolved_entries: list[dict[str, Any]] = []
 
-    for parent in sorted(choice_points, key=lambda item: item.code):
+    for parent in choice_points:
+        if not parent.code.startswith(args.root):
+            continue
+
+        analyzed += 1
         if not args.include_service and is_service_branch(parent):
-            skipped_service += 1
+            skipped += 1
             continue
 
         outcome = resolve_group(parent.children, parent.code, adaptive_rules, path_index)
         if outcome["resolved"]:
-            resolved_count += 1
+            resolved += 1
             continue
 
-        unresolved_groups = [
-            [{"code": node.code, "description": node.description} for node in subset]
-            for subset in outcome["unresolved"]
-        ]
-        unresolved_report.append(
+        unresolved_entries.append(
             {
-                "parent_code": parent.code,
-                "parent_description": parent.description,
-                "child_count": len(parent.children),
+                "code": parent.code,
+                "description": parent.description,
                 "used_questions": outcome["used_questions"],
-                "unresolved_groups": unresolved_groups,
+                "unresolved": [
+                    [{"code": node.code, "description": node.description} for node in subset]
+                    for subset in outcome["unresolved"]
+                ],
             }
         )
 
-    total = len(choice_points)
-    print(f"Analyzed choice points: {total}")
-    if not args.include_service:
-        print(f"Skipped service/normative points: {skipped_service}")
-    print(f"Resolved automatically: {resolved_count}")
-    print(f"Unresolved manual-choice points: {len(unresolved_report)}")
+    print(f"Analyzed choice points: {analyzed}")
+    print(f"Skipped service/normative points: {skipped}")
+    print(f"Resolved automatically: {resolved}")
+    print(f"Unresolved manual-choice points: {len(unresolved_entries)}")
     print()
 
-    for item in unresolved_report[: args.limit]:
-        print(f"{item['parent_code']} | {item['parent_description']}")
-        if item["used_questions"]:
-            print(f"  used: {', '.join(item['used_questions'])}")
-        for group in item["unresolved_groups"]:
-            codes = ", ".join(f"{row['code']} ({row['description']})" for row in group)
-            print(f"  unresolved: {codes}")
+    for entry in unresolved_entries[: args.limit]:
+        print(f"{entry['code']} | {entry['description']}")
+        if entry["used_questions"]:
+            print(f"  used: {', '.join(entry['used_questions'])}")
+        for subset in entry["unresolved"]:
+            formatted = ", ".join(f"{item['code']} ({item['description']})" for item in subset)
+            print(f"  unresolved: {formatted}")
         print()
 
-    if args.json_output:
-        output_path = Path(args.json_output)
-        output_path.write_text(
-            json.dumps(
-                {
-                    "root": args.root,
-                    "total_choice_points": total,
-                    "skipped_service": skipped_service,
-                    "resolved_count": resolved_count,
-                    "unresolved_count": len(unresolved_report),
-                    "unresolved": unresolved_report,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        print(f"JSON report written to {output_path}")
+    if args.json_path:
+        report_path = Path(args.json_path)
+        report_path.write_text(json.dumps(unresolved_entries, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
