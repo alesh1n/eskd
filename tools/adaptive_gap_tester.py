@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import Any
 
 
-FEATURE_CATALOG_71 = {
+ROTATION_FEATURE_CATALOG = {
     "is_sphere": {"question": "Это шар?"},
     "is_hollow_sphere": {"question": "Шар полый?"},
     "has_suspension_element": {"question": "Есть элемент для подвески?"},
+    "has_hub_face_slots_or_lugs": {"question": "Есть пазы или выступы на торце ступицы?"},
+    "is_ring_sector": {"question": "Это кольцевой сектор или сегмент?"},
     "has_center_hole": {"question": "Есть ли центральное отверстие?"},
     "has_face_ring_grooves": {"question": "Есть ли кольцевые пазы на торцах?"},
     "has_outer_slots_or_splines": {"question": "Есть ли пазы или шлицы на наружной поверхности?"},
@@ -221,6 +223,18 @@ def map_clause_to_features(clause: str, features: dict[str, bool]) -> None:
     if re.search(r"с эл-?т\w* для подвески", clause):
         set_feature_value(features, "has_suspension_element", True)
 
+    if re.search(r"без паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
+        set_feature_value(features, "has_hub_face_slots_or_lugs", False)
+
+    if re.search(r"с паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
+        set_feature_value(features, "has_hub_face_slots_or_lugs", True)
+
+    if re.search(r"кроме кольцев\w*", clause):
+        set_feature_value(features, "is_ring_sector", False)
+
+    if re.search(r"кольцев\w*", clause) and not re.search(r"кроме кольцев\w*", clause):
+        set_feature_value(features, "is_ring_sector", True)
+
     if re.search(r"центральн\w* глух\w* отверст", clause) or re.search(r"глух\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
         set_feature_value(features, "is_blind_hole", True)
@@ -266,7 +280,7 @@ def map_clause_to_features(clause: str, features: dict[str, bool]) -> None:
 
     if (
         re.search(r"с паз\w*(?:,?\s*шлиц\w*| и/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност", clause)
-        or re.search(r"с шлиц\w* на наружн\w* поверхност", clause)
+        or re.search(r"с[о]?\s*шлиц\w* на наружн\w* поверхност", clause)
     ):
         set_feature_value(features, "has_outer_slots_or_splines", True)
 
@@ -277,11 +291,36 @@ def map_clause_to_features(clause: str, features: dict[str, bool]) -> None:
         set_feature_value(features, "has_off_axis_holes", True)
 
 
-def extract_71_features(path_segments: list[str]) -> dict[str, bool]:
+def extract_rotation_features(path_segments: list[str]) -> dict[str, bool]:
     features: dict[str, bool] = {}
     for clause in parse_clauses(path_segments):
         map_clause_to_features(clause, features)
     return features
+
+
+def extract_module_range(path_segments: list[str]) -> dict[str, float] | None:
+    text = normalize_description_text(" ".join(path_segments))
+    number_pattern = r"([0-9]+(?:\s*,\s*[0-9]+)?)"
+    def find_last(pattern: str):
+        matches = list(re.finditer(pattern, text, re.IGNORECASE))
+        return matches[-1] if matches else None
+
+    match = find_last(rf"с модулем до\s*{number_pattern}\s*мм")
+    if match:
+        return {"min": float("-inf"), "max": float(match.group(1).replace(" ", "").replace(",", "."))}
+
+    match = find_last(rf"с модулем св\.?\s*{number_pattern}\s*до\s*{number_pattern}\s*мм")
+    if match:
+        return {
+            "min": float(match.group(1).replace(" ", "").replace(",", ".")),
+            "max": float(match.group(2).replace(" ", "").replace(",", ".")),
+        }
+
+    match = find_last(rf"с модулем св\.?\s*{number_pattern}\s*мм")
+    if match:
+        return {"min": float(match.group(1).replace(" ", "").replace(",", ".")), "max": float("inf")}
+
+    return None
 
 
 def load_tree(path: Path) -> tuple[list[Node], dict[str, Node], dict[str, str | None], dict[str, list[str]]]:
@@ -408,13 +447,51 @@ def get_explicit_split(nodes: list[Node], parent_code: str, adaptive_rules: dict
     return evaluate_split(rule["features"], rule["items"], candidate_codes)
 
 
-def get_feature_split_71(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
-    if not all(node.code.startswith("71") for node in nodes):
+def get_module_split(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
+    items = []
+    for node in nodes:
+        module_range = extract_module_range(path_index[node.code])
+        if not module_range:
+            return None
+        items.append((node.code, module_range))
+
+    thresholds = sorted({value["max"] for _, value in items if value["max"] != float("inf")})
+    best_split = None
+
+    for threshold in thresholds:
+        true_codes = []
+        false_codes = []
+
+        for code, value in items:
+            if value["max"] <= threshold:
+                false_codes.append(code)
+            elif value["min"] >= threshold:
+                true_codes.append(code)
+
+        if not true_codes or not false_codes or len(true_codes) + len(false_codes) != len(items):
+            continue
+
+        split = {
+            "feature_key": f"module_gt_{str(threshold).replace('.', '_')}",
+            "question": f"Модуль свыше {str(threshold).replace('.', ',')} мм?",
+            "true_codes": true_codes,
+            "false_codes": false_codes,
+            "balance": abs(len(true_codes) - len(false_codes)),
+        }
+
+        if best_split is None or split["balance"] < best_split["balance"]:
+            best_split = split
+
+    return best_split
+
+
+def get_feature_split_rotation(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
+    if not all(node.code.startswith("71") or node.code.startswith("72") for node in nodes):
         return None
 
     candidate_codes = [node.code for node in nodes]
-    items = {node.code: extract_71_features(path_index[node.code]) for node in nodes}
-    return evaluate_split(FEATURE_CATALOG_71, items, candidate_codes)
+    items = {node.code: extract_rotation_features(path_index[node.code]) for node in nodes}
+    return evaluate_split(ROTATION_FEATURE_CATALOG, items, candidate_codes)
 
 
 def resolve_group(
@@ -434,8 +511,9 @@ def resolve_group(
 
         dynamic_split = get_dynamic_clause_split(subset, path_index)
         explicit_split = get_explicit_split(subset, parent_code, adaptive_rules)
-        heuristic_split = get_feature_split_71(subset, path_index)
-        split = dynamic_split or explicit_split or heuristic_split
+        module_split = get_module_split(subset, path_index)
+        heuristic_split = get_feature_split_rotation(subset, path_index)
+        split = dynamic_split or explicit_split or module_split or heuristic_split
 
         if not split:
             unresolved.append(subset)

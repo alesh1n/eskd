@@ -9,7 +9,7 @@ function createEskdEngine() {
   const pathIndex = new Map();
   const parentIndex = new Map();
 
-  const featureCatalog71 = {
+  const rotationFeatureCatalog = {
     is_sphere: {
       question: "Это шар?",
       trueLabel: "Да",
@@ -30,6 +30,41 @@ function createEskdEngine() {
       falseLabel: "Нет",
       trueUserText: "Есть элемент для подвески",
       falseUserText: "Элемента для подвески нет"
+    },
+    has_hub_face_slots_or_lugs: {
+      question: "Есть пазы или выступы на торце ступицы?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Есть пазы или выступы на торце ступицы",
+      falseUserText: "Пазов и выступов на торце ступицы нет"
+    },
+    is_ring_sector: {
+      question: "Это кольцевой сектор или сегмент?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Это кольцевой сектор или сегмент",
+      falseUserText: "Это не кольцевой сектор или сегмент"
+    },
+    has_inner_base: {
+      question: "Основание внутреннее?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Основание внутреннее",
+      falseUserText: "Основание наружное"
+    },
+    has_flanges: {
+      question: "Есть фланцы?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Есть фланцы",
+      falseUserText: "Фланцев нет"
+    },
+    base_by_tooth_profile: {
+      question: "Основная база по профилю зубьев?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Основная база по профилю зубьев",
+      falseUserText: "Основная база не по профилю зубьев"
     },
     has_center_hole: {
       question: "Есть ли центральное отверстие?",
@@ -111,6 +146,8 @@ function createEskdEngine() {
       [/отв\b/g, "отверстие"],
       [/центр\./g, "центральное"],
       [/нар\./g, "наружной"],
+      [/внутр\./g, "внутренней"],
+      [/осн\./g, "основания"],
       [/пов\./g, "поверхности"],
       [/поверх\./g, "поверхности"],
       [/дет\./g, "детали"],
@@ -321,6 +358,98 @@ function createEskdEngine() {
     return bestSplit;
   }
 
+  function extractModuleRange(pathSegments) {
+    const text = normalizeDescriptionText(pathSegments.join(" "));
+    const numberPattern = "([0-9]+(?:\\s*,\\s*[0-9]+)?)";
+    const findLast = (pattern) => {
+      const matches = [...text.matchAll(new RegExp(pattern, "ig"))];
+      return matches.length > 0 ? matches[matches.length - 1] : null;
+    };
+
+    match = findLast(`с модулем св\\.?\\s*${numberPattern}\\s*до\\s*${numberPattern}\\s*мм`);
+    if (match) {
+      return {
+        min: parseFloat(match[1].replace(/\s*,\s*/g, ".")),
+        max: parseFloat(match[2].replace(/\s*,\s*/g, "."))
+      };
+    }
+
+    match = findLast(`с модулем св\\.?\\s*${numberPattern}\\s*мм`);
+    if (match) {
+      return { min: parseFloat(match[1].replace(/\s*,\s*/g, ".")), max: Number.POSITIVE_INFINITY };
+    }
+
+    match = findLast(`с модулем до\\s*${numberPattern}\\s*мм`);
+    if (match) {
+      return { min: Number.NEGATIVE_INFINITY, max: parseFloat(match[1].replace(/\s*,\s*/g, ".")) };
+    }
+
+    return null;
+  }
+
+  function buildModuleSplit(nodes, parentCode) {
+    const items = nodes
+      .map((node) => ({ node, range: extractModuleRange(pathIndex.get(node.code) || []) }))
+      .filter((item) => item.range);
+
+    if (items.length !== nodes.length) {
+      return null;
+    }
+
+    const thresholds = [...new Set(items
+      .map((item) => item.range.max)
+      .filter((value) => Number.isFinite(value))
+    )].sort((a, b) => a - b);
+
+    let bestSplit = null;
+
+    thresholds.forEach((threshold) => {
+      const trueCodes = [];
+      const falseCodes = [];
+
+      items.forEach(({ node, range }) => {
+        if (range.min >= threshold && !Number.isFinite(range.max)) {
+          trueCodes.push(node.code);
+          return;
+        }
+
+        if (range.min >= threshold && Number.isFinite(range.max) && range.min === threshold) {
+          trueCodes.push(node.code);
+          return;
+        }
+
+        if (range.max <= threshold) {
+          falseCodes.push(node.code);
+        }
+      });
+
+      if (trueCodes.length === 0 || falseCodes.length === 0 || trueCodes.length + falseCodes.length !== nodes.length) {
+        return;
+      }
+
+      const split = {
+        parentCode,
+        featureKey: `module_gt_${String(threshold).replace(".", "_")}`,
+        feature: {
+          question: `Модуль свыше ${String(threshold).replace(".", ",")} мм?`,
+          trueLabel: "Да",
+          falseLabel: "Нет",
+          trueUserText: `Модуль свыше ${String(threshold).replace(".", ",")} мм`,
+          falseUserText: `Модуль до ${String(threshold).replace(".", ",")} мм`
+        },
+        trueCodes,
+        falseCodes,
+        balance: Math.abs(trueCodes.length - falseCodes.length)
+      };
+
+      if (!bestSplit || split.balance < bestSplit.balance) {
+        bestSplit = split;
+      }
+    });
+
+    return bestSplit;
+  }
+
   function getSharedParentCode(nodes) {
     const parentCodes = [...new Set(nodes.map((node) => parentIndex.get(node.code)).filter(Boolean))];
     return parentCodes.length === 1 ? parentCodes[0] : null;
@@ -396,6 +525,15 @@ function createEskdEngine() {
     if (/пол\w*/.test(clause)) setFeatureValue(features, "is_hollow_sphere", true);
     if (/без эл-?т\w* для подвески/.test(clause)) setFeatureValue(features, "has_suspension_element", false);
     if (/с эл-?т\w* для подвески/.test(clause)) setFeatureValue(features, "has_suspension_element", true);
+    if (/без паз\w* и выступ\w* на торц\w* ступиц\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", false);
+    if (/с паз\w* и выступ\w* на торц\w* ступиц\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", true);
+    if (/кроме кольцев\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", false);
+    if (/кольцев\w*/.test(clause) && !/кроме кольцев\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", true);
+    if (/с внутр\w* осн\w* баз\w*/.test(clause)) setFeatureValue(features, "has_inner_base", true);
+    if (/с нар\w* осн\w* баз\w*/.test(clause)) setFeatureValue(features, "has_inner_base", false);
+    if (/без фланц\w*/.test(clause)) setFeatureValue(features, "has_flanges", false);
+    if (/с фланц\w*/.test(clause)) setFeatureValue(features, "has_flanges", true);
+    if (/по профил\w* зуб\w*/.test(clause)) setFeatureValue(features, "base_by_tooth_profile", true);
     if (/центральн\w* глух\w* отверст/.test(clause) || /глух\w* отверст/.test(clause)) {
       setFeatureValue(features, "has_center_hole", true);
       setFeatureValue(features, "is_blind_hole", true);
@@ -423,7 +561,7 @@ function createEskdEngine() {
     }
     if (
       /с паз\w*(?:,?\s*шлиц\w*| и\/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност/.test(clause) ||
-      /с шлиц\w* на наружн\w* поверхност/.test(clause)
+      /с[о]?\s*шлиц\w* на наружн\w* поверхност/.test(clause)
     ) {
       setFeatureValue(features, "has_outer_slots_or_splines", true);
     }
@@ -431,7 +569,7 @@ function createEskdEngine() {
     if (/с отверст\w* вне оси/.test(clause)) setFeatureValue(features, "has_off_axis_holes", true);
   }
 
-  function extract71FeaturesFromPath(pathSegments) {
+  function extractRotationFeaturesFromPath(pathSegments) {
     const features = {};
     parseEskdClauses(pathSegments).forEach((clause) => mapClauseToFeatures(clause, features));
     return features;
@@ -452,14 +590,14 @@ function createEskdEngine() {
     });
   }
 
-  function getHeuristic71Split(nodes) {
-    if (!nodes.every((node) => node.code.startsWith("71"))) return null;
+  function getRotationHeuristicSplit(nodes) {
+    if (!nodes.every((node) => node.code.startsWith("71") || node.code.startsWith("72"))) return null;
     const candidateCodes = nodes.map((node) => node.code);
     const items = {};
     nodes.forEach((node) => {
-      items[node.code] = extract71FeaturesFromPath(pathIndex.get(node.code) || []);
+      items[node.code] = extractRotationFeaturesFromPath(pathIndex.get(node.code) || []);
     });
-    return evaluateAdaptiveSplit(featureCatalog71, items, candidateCodes, getSharedParentCode(nodes) || "71");
+    return evaluateAdaptiveSplit(rotationFeatureCatalog, items, candidateCodes, getSharedParentCode(nodes) || "71");
   }
 
   function getAdaptiveSplit(nodes) {
@@ -477,11 +615,14 @@ function createEskdEngine() {
       }
     }
 
-    return getHeuristic71Split(nodes);
+    const moduleSplit = buildModuleSplit(nodes, parentCode || getSharedParentCode(nodes) || "rotation");
+    if (moduleSplit) return moduleSplit;
+
+    return getRotationHeuristicSplit(nodes);
   }
 
   function getFeatureDefinition(featureKey) {
-    if (featureCatalog71[featureKey]) return featureCatalog71[featureKey];
+    if (rotationFeatureCatalog[featureKey]) return rotationFeatureCatalog[featureKey];
     for (const rule of Object.values(adaptiveRules)) {
       if (rule?.features?.[featureKey]) return rule.features[featureKey];
     }
@@ -492,8 +633,8 @@ function createEskdEngine() {
     const parentCode = parentIndex.get(node.code);
     const explicitValue = parentCode ? adaptiveRules[parentCode]?.items?.[node.code]?.[featureKey] : undefined;
     if (explicitValue === true || explicitValue === false) return explicitValue;
-    if (node.code.startsWith("71")) {
-      return extract71FeaturesFromPath(pathIndex.get(node.code) || [])[featureKey];
+    if (node.code.startsWith("71") || node.code.startsWith("72")) {
+      return extractRotationFeaturesFromPath(pathIndex.get(node.code) || [])[featureKey];
     }
     return undefined;
   }
