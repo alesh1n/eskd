@@ -387,6 +387,26 @@ function createEskdEngine() {
     return null;
   }
 
+  function formatModuleValue(value) {
+    return String(value).replace(".", ",");
+  }
+
+  function getModuleRangeLabel(range) {
+    if (!Number.isFinite(range.min) && Number.isFinite(range.max)) {
+      return `До ${formatModuleValue(range.max)} мм`;
+    }
+
+    if (Number.isFinite(range.min) && !Number.isFinite(range.max)) {
+      return `Свыше ${formatModuleValue(range.min)} мм`;
+    }
+
+    if (Number.isFinite(range.min) && Number.isFinite(range.max)) {
+      return `От ${formatModuleValue(range.min)} до ${formatModuleValue(range.max)} мм`;
+    }
+
+    return null;
+  }
+
   function buildModuleSplit(nodes, parentCode) {
     const items = nodes
       .map((node) => ({ node, range: extractModuleRange(pathIndex.get(node.code) || []) }))
@@ -396,58 +416,36 @@ function createEskdEngine() {
       return null;
     }
 
-    const thresholds = [...new Set(items
-      .map((item) => item.range.max)
-      .filter((value) => Number.isFinite(value))
-    )].sort((a, b) => a - b);
-
-    let bestSplit = null;
-
-    thresholds.forEach((threshold) => {
-      const trueCodes = [];
-      const falseCodes = [];
-
-      items.forEach(({ node, range }) => {
-        if (range.min >= threshold && !Number.isFinite(range.max)) {
-          trueCodes.push(node.code);
-          return;
-        }
-
-        if (range.min >= threshold && Number.isFinite(range.max) && range.min === threshold) {
-          trueCodes.push(node.code);
-          return;
-        }
-
-        if (range.max <= threshold) {
-          falseCodes.push(node.code);
-        }
-      });
-
-      if (trueCodes.length === 0 || falseCodes.length === 0 || trueCodes.length + falseCodes.length !== nodes.length) {
-        return;
+    const groups = new Map();
+    items.forEach(({ node, range }) => {
+      const label = getModuleRangeLabel(range);
+      if (!label) return;
+      if (!groups.has(label)) {
+        groups.set(label, []);
       }
-
-      const split = {
-        parentCode,
-        featureKey: `module_gt_${String(threshold).replace(".", "_")}`,
-        feature: {
-          question: `Модуль свыше ${String(threshold).replace(".", ",")} мм?`,
-          trueLabel: "Да",
-          falseLabel: "Нет",
-          trueUserText: `Модуль свыше ${String(threshold).replace(".", ",")} мм`,
-          falseUserText: `Модуль до ${String(threshold).replace(".", ",")} мм`
-        },
-        trueCodes,
-        falseCodes,
-        balance: Math.abs(trueCodes.length - falseCodes.length)
-      };
-
-      if (!bestSplit || split.balance < bestSplit.balance) {
-        bestSplit = split;
-      }
+      groups.get(label).push(node.code);
     });
 
-    return bestSplit;
+    const options = [...groups.entries()].map(([label, candidateCodes]) => ({
+      type: "adaptive",
+      label,
+      userText: `Модуль ${label.toLowerCase()}`,
+      candidateCodes,
+      featureConstraints: null
+    }));
+
+    if (options.length >= 2 && options.length <= 4) {
+      return {
+        parentCode,
+        mode: "options",
+        feature: {
+          question: "Какой диапазон модуля подходит?"
+        },
+        options
+      };
+    }
+
+    return null;
   }
 
   function getSharedParentCode(nodes) {

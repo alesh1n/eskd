@@ -2,7 +2,7 @@
   "start": "object_kind",
   "questions": {
     "object_kind": {
-      "text": "Что нужно классифицировать?",
+      "text": "Что это?",
       "options": [
         {
           "label": "Деталь",
@@ -692,3 +692,4 @@
     }
   }
 }
+

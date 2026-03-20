@@ -1,4 +1,4 @@
-const chat = document.getElementById("chat");
+﻿const chat = document.getElementById("chat");
 const answers = document.getElementById("answers");
 const navRow = document.getElementById("navRow");
 const backBtn = document.getElementById("backBtn");
@@ -176,6 +176,20 @@ function askAdaptiveQuestion(nodes) {
   }
 
   addMessage(split.feature.question, "system");
+
+  if (split.mode === "options" && Array.isArray(split.options) && split.options.length > 0) {
+    setAnswerOptions(split.options.map((option) => ({
+      type: "adaptive",
+      label: option.label,
+      userText: option.userText || option.label,
+      candidateCodes: option.candidateCodes || [],
+      featureConstraints: option.featureConstraints || null,
+      image: option.image
+    })));
+    showButtons(true);
+    return true;
+  }
+
   setAnswerOptions([
     {
       type: "adaptive",
@@ -249,7 +263,7 @@ function askTreeLevel(options) {
     options.map((node) => ({
       type: "tree",
       node,
-      label: `${node.code} — ${node.description}`,
+      label: `${node.code} - ${node.description}`,
       image: node.image
     }))
   );
@@ -345,7 +359,7 @@ function startDialog() {
     return;
   }
 
-  addMessage("Привет! Сначала задам несколько смысловых вопросов, чтобы резко сузить поиск децимального номера.", "system");
+  addMessage("Привет! Давай определим подходящий децимальный номер по нескольким вопросам.", "system");
   askFlowQuestion(engine.getStartQuestionId());
 }
 
@@ -384,3 +398,5 @@ answers.addEventListener("click", (event) => {
 
 backBtn.addEventListener("click", goBack);
 restartBtn.addEventListener("click", startDialog);
+
+

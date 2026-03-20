@@ -347,4 +347,16 @@ body {
     width: 100%;
   }
 
+  .answers-compact {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .answers-compact .btn-option-compact {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
 }
+
