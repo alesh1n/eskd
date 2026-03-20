@@ -407,45 +407,59 @@ function createEskdEngine() {
     return null;
   }
 
+  function buildModuleBuckets(items) {
+    const ordered = [...items].sort((a, b) => {
+      const aStart = Number.isFinite(a.range.min) ? a.range.min : -1;
+      const bStart = Number.isFinite(b.range.min) ? b.range.min : -1;
+      if (aStart !== bStart) return aStart - bStart;
+      const aEnd = Number.isFinite(a.range.max) ? a.range.max : Number.POSITIVE_INFINITY;
+      const bEnd = Number.isFinite(b.range.max) ? b.range.max : Number.POSITIVE_INFINITY;
+      return aEnd - bEnd;
+    });
+
+    const chunkSize = Math.ceil(ordered.length / 6);
+    const buckets = [];
+    for (let index = 0; index < ordered.length; index += chunkSize) {
+      buckets.push(ordered.slice(index, index + chunkSize));
+    }
+    return buckets;
+  }
+
   function buildModuleSplit(nodes, parentCode) {
     const items = nodes
       .map((node) => ({ node, range: extractModuleRange(pathIndex.get(node.code) || []) }))
       .filter((item) => item.range);
 
-    if (items.length !== nodes.length) {
+    if (items.length !== nodes.length || items.length < 2) {
       return null;
     }
 
-    const groups = new Map();
-    items.forEach(({ node, range }) => {
-      const label = getModuleRangeLabel(range);
-      if (!label) return;
-      if (!groups.has(label)) {
-        groups.set(label, []);
-      }
-      groups.get(label).push(node.code);
-    });
-
-    const options = [...groups.entries()].map(([label, candidateCodes]) => ({
-      type: "adaptive",
-      label,
-      userText: `Модуль ${label.toLowerCase()}`,
-      candidateCodes,
-      featureConstraints: null
-    }));
-
-    if (options.length >= 2 && options.length <= 4) {
-      return {
-        parentCode,
-        mode: "options",
-        feature: {
-          question: "Какой диапазон модуля подходит?"
-        },
-        options
-      };
+    const buckets = buildModuleBuckets(items);
+    if (buckets.length < 2 || buckets.length > 6) {
+      return null;
     }
 
-    return null;
+    const options = buckets.map((bucket) => {
+      const first = bucket[0].range;
+      const last = bucket[bucket.length - 1].range;
+      const label = getModuleRangeLabel({ min: first.min, max: last.max });
+      return {
+        type: "adaptive",
+        label,
+        userText: `Модуль ${label.toLowerCase()}`,
+        candidateCodes: bucket.map((item) => item.node.code),
+        featureConstraints: null
+      };
+    });
+
+    return {
+      parentCode,
+      mode: "options",
+      feature: {
+        question: "Какой диапазон модуля подходит?"
+      },
+      options
+    };
   }
 
   function getSharedParentCode(nodes) {

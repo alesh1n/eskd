@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -447,6 +448,32 @@ def get_explicit_split(nodes: list[Node], parent_code: str, adaptive_rules: dict
     return evaluate_split(rule["features"], rule["items"], candidate_codes)
 
 
+def format_module_value(value: float) -> str:
+    return str(value).replace('.', ',')
+
+
+def get_module_range_label(value: dict[str, float]) -> str | None:
+    if value["min"] == float("-inf") and value["max"] != float("inf"):
+        return f"?? {format_module_value(value['max'])} ??"
+    if value["min"] != float("-inf") and value["max"] == float("inf"):
+        return f"????? {format_module_value(value['min'])} ??"
+    if value["min"] != float("-inf") and value["max"] != float("inf"):
+        return f"?? {format_module_value(value['min'])} ?? {format_module_value(value['max'])} ??"
+    return None
+
+
+def build_module_buckets(items: list[tuple[str, dict[str, float]]]) -> list[list[tuple[str, dict[str, float]]]]:
+    ordered = sorted(
+        items,
+        key=lambda item: (
+            item[1]["min"] if item[1]["min"] != float("-inf") else -1,
+            item[1]["max"] if item[1]["max"] != float("inf") else float("inf"),
+        ),
+    )
+    chunk_size = math.ceil(len(ordered) / 6)
+    return [ordered[index:index + chunk_size] for index in range(0, len(ordered), chunk_size)]
+
+
 def get_module_split(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
     items = []
     for node in nodes:
@@ -455,34 +482,27 @@ def get_module_split(nodes: list[Node], path_index: dict[str, list[str]]) -> dic
             return None
         items.append((node.code, module_range))
 
-    thresholds = sorted({value["max"] for _, value in items if value["max"] != float("inf")})
-    best_split = None
+    if len(items) < 2:
+        return None
 
-    for threshold in thresholds:
-        true_codes = []
-        false_codes = []
+    buckets = build_module_buckets(items)
+    if len(buckets) < 2 or len(buckets) > 6:
+        return None
 
-        for code, value in items:
-            if value["max"] <= threshold:
-                false_codes.append(code)
-            elif value["min"] >= threshold:
-                true_codes.append(code)
+    return {
+        "feature_key": "module_range_options",
+        "question": "????? ???????? ?????? ?????????",
+        "mode": "options",
+        "options": [
+            {
+                "label": get_module_range_label({"min": bucket[0][1]["min"], "max": bucket[-1][1]["max"]}),
+                "codes": [code for code, _ in bucket],
+            }
+            for bucket in buckets
+        ],
+    }
 
-        if not true_codes or not false_codes or len(true_codes) + len(false_codes) != len(items):
-            continue
-
-        split = {
-            "feature_key": f"module_gt_{str(threshold).replace('.', '_')}",
-            "question": f"Модуль свыше {str(threshold).replace('.', ',')} мм?",
-            "true_codes": true_codes,
-            "false_codes": false_codes,
-            "balance": abs(len(true_codes) - len(false_codes)),
-        }
-
-        if best_split is None or split["balance"] < best_split["balance"]:
-            best_split = split
-
-    return best_split
+    return None
 
 
 def get_feature_split_rotation(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
@@ -521,6 +541,10 @@ def resolve_group(
 
         used_questions.append(split["feature_key"])
         code_to_node = {node.code: node for node in subset}
+        if split.get("mode") == "options":
+            for option in split["options"]:
+                queue.append([code_to_node[code] for code in option["codes"]])
+            continue
         queue.append([code_to_node[code] for code in split["true_codes"]])
         queue.append([code_to_node[code] for code in split["false_codes"]])
 
