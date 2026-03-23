@@ -124,6 +124,30 @@ function createEskdEngine() {
     }
   };
 
+  const generalFeatureCatalog = {
+    has_local_bends: {
+      question: "Есть местные изгибы?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Есть местные изгибы",
+      falseUserText: "Местных изгибов нет"
+    },
+    has_slots: {
+      question: "Есть пазы?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Есть пазы",
+      falseUserText: "Пазов нет"
+    },
+    has_holes: {
+      question: "Есть отверстия?",
+      trueLabel: "Да",
+      falseLabel: "Нет",
+      trueUserText: "Есть отверстия",
+      falseUserText: "Отверстий нет"
+    }
+  };
+
   function normalizeText(value) {
     return (value || "").toLowerCase().replace(/ё/g, "е");
   }
@@ -137,6 +161,22 @@ function createEskdEngine() {
 
   function cloneFeatureAnswers(featureAnswers) {
     return { ...featureAnswers };
+  }
+
+
+  function compareNodeCodes(a, b) {
+    const aCode = typeof a === "string" ? a : a?.code || "";
+    const bCode = typeof b === "string" ? b : b?.code || "";
+    const aNum = Number.parseInt(aCode, 10);
+    const bNum = Number.parseInt(bCode, 10);
+    const aHasNum = Number.isFinite(aNum);
+    const bHasNum = Number.isFinite(bNum);
+
+    if (aHasNum && bHasNum && aNum !== bNum) {
+      return aNum - bNum;
+    }
+
+    return aCode.localeCompare(bCode, "ru", { numeric: true });
   }
 
   function normalizeDescriptionText(value) {
@@ -530,55 +570,59 @@ function createEskdEngine() {
   }
 
   function mapClauseToFeatures(clause, features) {
-    if (/без центральн\w* отверст/.test(clause)) setFeatureValue(features, "has_center_hole", false);
-    if (/кроме шар\w*/.test(clause)) setFeatureValue(features, "is_sphere", false);
-    if (/шар\w*/.test(clause) && !/кроме шар\w*/.test(clause)) setFeatureValue(features, "is_sphere", true);
-    if (/сплошн\w*/.test(clause)) setFeatureValue(features, "is_hollow_sphere", false);
-    if (/пол\w*/.test(clause)) setFeatureValue(features, "is_hollow_sphere", true);
-    if (/без эл-?т\w* для подвески/.test(clause)) setFeatureValue(features, "has_suspension_element", false);
-    if (/с эл-?т\w* для подвески/.test(clause)) setFeatureValue(features, "has_suspension_element", true);
-    if (/без паз\w* и выступ\w* на торц\w* ступиц\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", false);
-    if (/с паз\w* и выступ\w* на торц\w* ступиц\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", true);
-    if (/кроме кольцев\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", false);
-    if (/кольцев\w*/.test(clause) && !/кроме кольцев\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", true);
-    if (/с внутр\w* осн\w* баз\w*/.test(clause)) setFeatureValue(features, "has_inner_base", true);
-    if (/с нар\w* осн\w* баз\w*/.test(clause)) setFeatureValue(features, "has_inner_base", false);
-    if (/без фланц\w*/.test(clause)) setFeatureValue(features, "has_flanges", false);
-    if (/с фланц\w*/.test(clause)) setFeatureValue(features, "has_flanges", true);
-    if (/по профил\w* зуб\w*/.test(clause)) setFeatureValue(features, "base_by_tooth_profile", true);
-    if (/центральн\w* глух\w* отверст/.test(clause) || /глух\w* отверст/.test(clause)) {
+    if (/\u0431\u0435\u0437 \u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause)) setFeatureValue(features, "has_center_hole", false);
+    if (/\u043a\u0440\u043e\u043c\u0435 \u0448\u0430\u0440\w*/.test(clause)) setFeatureValue(features, "is_sphere", false);
+    if (/\u0448\u0430\u0440\w*/.test(clause) && !/\u043a\u0440\u043e\u043c\u0435 \u0448\u0430\u0440\w*/.test(clause)) setFeatureValue(features, "is_sphere", true);
+    if (/\u0441\u043f\u043b\u043e\u0448\u043d\w*/.test(clause)) setFeatureValue(features, "is_hollow_sphere", false);
+    if (/\b\u043f\u043e\u043b(?:\u044b\u0439|\u0430\u044f|\u043e\u0435|\u044b\u0435|\u043e\u0433\u043e|\u043e\u0439|\u044b\u0445)\w*/.test(clause)) setFeatureValue(features, "is_hollow_sphere", true);
+    if (/\u0431\u0435\u0437 \u044d\u043b-?\u0442\w* \u0434\u043b\u044f \u043f\u043e\u0434\u0432\u0435\u0441\u043a\u0438/.test(clause)) setFeatureValue(features, "has_suspension_element", false);
+    if (/\u0441 \u044d\u043b-?\u0442\w* \u0434\u043b\u044f \u043f\u043e\u0434\u0432\u0435\u0441\u043a\u0438/.test(clause)) setFeatureValue(features, "has_suspension_element", true);
+    if (/\u0431\u0435\u0437 \u043c\u0435\u0441\u0442\u043d\w* \u0438\u0437\u0433\u0438\u0431\w*/.test(clause)) setFeatureValue(features, "has_local_bends", false);
+    if (/\u0441 \u043c\u0435\u0441\u0442\u043d\w* \u0438\u0437\u0433\u0438\u0431\w*/.test(clause)) setFeatureValue(features, "has_local_bends", true);
+    if (/\u0431\u0435\u0437 \u043f\u0430\u0437\w*/.test(clause) && !/\u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442\w*|\u0442\u043e\u0440\u0446\w*|\u0448\u043b\u0438\u0446\w*/.test(clause)) setFeatureValue(features, "has_slots", false);
+    if (/\u0441 \u043f\u0430\u0437\w*/.test(clause) && !/\u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442\w*|\u0442\u043e\u0440\u0446\w*|\u0448\u043b\u0438\u0446\w*/.test(clause)) setFeatureValue(features, "has_slots", true);
+    if (/\u0431\u0435\u0437 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\w*/.test(clause) && !/\u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w*|\u0432\u043d\u0435 \u043e\u0441\u0438/.test(clause)) setFeatureValue(features, "has_holes", false);
+    if ((/\u0441 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\w*/.test(clause) || /\u0438\/\u0438\u043b\u0438 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\w*/.test(clause)) && !/\u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w*|\u0432\u043d\u0435 \u043e\u0441\u0438/.test(clause)) setFeatureValue(features, "has_holes", true);
+    if (/\u0431\u0435\u0437 \u043f\u0430\u0437\w* \u0438 \u0432\u044b\u0441\u0442\u0443\u043f\w* \u043d\u0430 \u0442\u043e\u0440\u0446\w* \u0441\u0442\u0443\u043f\u0438\u0446\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", false);
+    if (/\u0441 \u043f\u0430\u0437\w* \u0438 \u0432\u044b\u0441\u0442\u0443\u043f\w* \u043d\u0430 \u0442\u043e\u0440\u0446\w* \u0441\u0442\u0443\u043f\u0438\u0446\w*/.test(clause)) setFeatureValue(features, "has_hub_face_slots_or_lugs", true);
+    if (/\u043a\u0440\u043e\u043c\u0435 \u043a\u043e\u043b\u044c\u0446\u0435\u0432\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", false);
+    if (/\u043a\u043e\u043b\u044c\u0446\u0435\u0432\w*/.test(clause) && !/\u043a\u0440\u043e\u043c\u0435 \u043a\u043e\u043b\u044c\u0446\u0435\u0432\w*/.test(clause)) setFeatureValue(features, "is_ring_sector", true);
+    if (/\u0441 \u0432\u043d\u0443\u0442\u0440\w* \u043e\u0441\u043d\w* \u0431\u0430\u0437\w*/.test(clause)) setFeatureValue(features, "has_inner_base", true);
+    if (/\u0441 \u043d\u0430\u0440\w* \u043e\u0441\u043d\w* \u0431\u0430\u0437\w*/.test(clause)) setFeatureValue(features, "has_inner_base", false);
+    if (/\u0431\u0435\u0437 \u0444\u043b\u0430\u043d\u0446\w*/.test(clause)) setFeatureValue(features, "has_flanges", false);
+    if (/\u0441 \u0444\u043b\u0430\u043d\u0446\w*/.test(clause)) setFeatureValue(features, "has_flanges", true);
+    if (/\u043f\u043e \u043f\u0440\u043e\u0444\u0438\u043b\w* \u0437\u0443\u0431\w*/.test(clause)) setFeatureValue(features, "base_by_tooth_profile", true);
+    if (/\u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w* \u0433\u043b\u0443\u0445\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause) || /\u0433\u043b\u0443\u0445\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause)) {
       setFeatureValue(features, "has_center_hole", true);
       setFeatureValue(features, "is_blind_hole", true);
     }
-    if (/центральн\w* сквоз\w* отверст/.test(clause) || /сквоз\w* отверст/.test(clause)) {
+    if (/\u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w* \u0441\u043a\u0432\u043e\u0437\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause) || /\u0441\u043a\u0432\u043e\u0437\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause)) {
       setFeatureValue(features, "has_center_hole", true);
       setFeatureValue(features, "is_blind_hole", false);
     }
-    if (/центральн\w* отверст/.test(clause) && !/без центральн\w* отверст/.test(clause)) setFeatureValue(features, "has_center_hole", true);
-    if (/без резьб/.test(clause)) setFeatureValue(features, "has_thread_in_hole", false);
-    if (/с резьб/.test(clause) || /резьбов/.test(clause)) setFeatureValue(features, "has_thread_in_hole", true);
-    if (/ступенчат/.test(clause)) setFeatureValue(features, "is_stepped_hole", true);
-    if (/гладк/.test(clause)) setFeatureValue(features, "is_stepped_hole", false);
-    if (/некругл/.test(clause)) setFeatureValue(features, "is_round_hole", false);
-    if (/кругл/.test(clause) && !/некругл/.test(clause)) setFeatureValue(features, "is_round_hole", true);
-    if (/без кольцев\w* паз\w* на торц/.test(clause)) setFeatureValue(features, "has_face_ring_grooves", false);
-    if (/с кольцев\w* паз\w* на торц/.test(clause)) setFeatureValue(features, "has_face_ring_grooves", true);
-    if (
-      /без паз\w* и шлиц\w* на наружн\w* поверхност/.test(clause) ||
-      /без паз\w* шлиц\w* на наружн\w* поверхност/.test(clause) ||
-      /без паз\w* на наружн\w* поверхност/.test(clause) ||
-      /без шлиц\w* на наружн\w* поверхност/.test(clause)
-    ) {
+    if (/\u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause) && !/\u0431\u0435\u0437 \u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\w* \u043e\u0442\u0432\u0435\u0440\u0441\u0442/.test(clause)) {
+      setFeatureValue(features, "has_center_hole", true);
+    }
+    if (/\u0431\u0435\u0437 \u0440\u0435\u0437\u044c\u0431/.test(clause)) setFeatureValue(features, "has_thread_in_hole", false);
+    if (/\u0441 \u0440\u0435\u0437\u044c\u0431/.test(clause) || /\u0440\u0435\u0437\u044c\u0431\u043e\u0432/.test(clause)) setFeatureValue(features, "has_thread_in_hole", true);
+    if (/\u0441\u0442\u0443\u043f\u0435\u043d\u0447\u0430\u0442/.test(clause)) setFeatureValue(features, "is_stepped_hole", true);
+    if (/\u0433\u043b\u0430\u0434\u043a/.test(clause)) setFeatureValue(features, "is_stepped_hole", false);
+    if (/\u043d\u0435\u043a\u0440\u0443\u0433\u043b/.test(clause)) setFeatureValue(features, "is_round_hole", false);
+    if (/\u043a\u0440\u0443\u0433\u043b/.test(clause) && !/\u043d\u0435\u043a\u0440\u0443\u0433\u043b/.test(clause)) setFeatureValue(features, "is_round_hole", true);
+    if (/\u0431\u0435\u0437 \u043a\u043e\u043b\u044c\u0446\u0435\u0432\w* \u043f\u0430\u0437\w* \u043d\u0430 \u0442\u043e\u0440\u0446/.test(clause)) setFeatureValue(features, "has_face_ring_grooves", false);
+    if (/\u0441 \u043a\u043e\u043b\u044c\u0446\u0435\u0432\w* \u043f\u0430\u0437\w* \u043d\u0430 \u0442\u043e\u0440\u0446/.test(clause)) setFeatureValue(features, "has_face_ring_grooves", true);
+    if ((/\u0431\u0435\u0437 \u043f\u0430\u0437\w* \u0438 \u0448\u043b\u0438\u0446\w* \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))
+      || (/\u0431\u0435\u0437 \u043f\u0430\u0437\w* \u0448\u043b\u0438\u0446\w* \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))
+      || (/\u0431\u0435\u0437 \u043f\u0430\u0437\w* \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))
+      || (/\u0431\u0435\u0437 \u0448\u043b\u0438\u0446\w* \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))) {
       setFeatureValue(features, "has_outer_slots_or_splines", false);
     }
-    if (
-      /с паз\w*(?:,?\s*шлиц\w*| и\/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност/.test(clause) ||
-      /с[о]?\s*шлиц\w* на наружн\w* поверхност/.test(clause)
-    ) {
+    if ((/\u0441 \u043f\u0430\u0437\w*(?:,?\s*\u0448\u043b\u0438\u0446\w*| \u0438\/\u0438\u043b\u0438 \u0448\u043b\u0438\u0446\w*| \u0448\u043b\u0438\u0446\w*)? \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))
+      || (/\u0441[\u043e]?\s*\u0448\u043b\u0438\u0446\w* \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\w* \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442/.test(clause))) {
       setFeatureValue(features, "has_outer_slots_or_splines", true);
     }
-    if (/без отверст\w* вне оси/.test(clause)) setFeatureValue(features, "has_off_axis_holes", false);
-    if (/с отверст\w* вне оси/.test(clause)) setFeatureValue(features, "has_off_axis_holes", true);
+    if (/\u0431\u0435\u0437 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\w* \u0432\u043d\u0435 \u043e\u0441\u0438/.test(clause)) setFeatureValue(features, "has_off_axis_holes", false);
+    if (/\u0441 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\w* \u0432\u043d\u0435 \u043e\u0441\u0438/.test(clause)) setFeatureValue(features, "has_off_axis_holes", true);
   }
 
   function extractRotationFeaturesFromPath(pathSegments) {
@@ -587,9 +631,15 @@ function createEskdEngine() {
     return features;
   }
 
+  function extractGeneralFeaturesFromPath(pathSegments) {
+    const features = {};
+    parseEskdClauses(pathSegments).forEach((clause) => mapClauseToFeatures(clause, features));
+    return features;
+  }
+
   function getChildren(node) {
     if (!node || !node.children) return [];
-    return Object.values(node.children).filter(Boolean);
+    return Object.values(node.children).filter(Boolean).sort(compareNodeCodes);
   }
 
   function buildNodeIndex(nodes, parentPath = [], parentCode = null) {
@@ -610,6 +660,15 @@ function createEskdEngine() {
       items[node.code] = extractRotationFeaturesFromPath(pathIndex.get(node.code) || []);
     });
     return evaluateAdaptiveSplit(rotationFeatureCatalog, items, candidateCodes, getSharedParentCode(nodes) || "71");
+  }
+
+  function getGeneralHeuristicSplit(nodes) {
+    const candidateCodes = nodes.map((node) => node.code);
+    const items = {};
+    nodes.forEach((node) => {
+      items[node.code] = extractGeneralFeaturesFromPath(pathIndex.get(node.code) || []);
+    });
+    return evaluateAdaptiveSplit(generalFeatureCatalog, items, candidateCodes, getSharedParentCode(nodes) || "general");
   }
 
   function getAdaptiveSplit(nodes) {
@@ -803,7 +862,7 @@ function createEskdEngine() {
 
   return {
     loadData(treeData, flowData, adaptiveData) {
-      treeRoots = Object.values(treeData).filter(Boolean);
+      treeRoots = Object.values(treeData).filter(Boolean).sort(compareNodeCodes);
       questionFlow = flowData;
       adaptiveRules = adaptiveData || {};
       nodeIndex.clear();

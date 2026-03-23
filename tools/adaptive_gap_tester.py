@@ -26,24 +26,30 @@ ROTATION_FEATURE_CATALOG = {
     "is_round_hole": {"question": "Центральное отверстие круглое?"},
 }
 
+GENERAL_FEATURE_CATALOG = {
+    "has_local_bends": {"question": "Есть местные изгибы?"},
+    "has_slots": {"question": "Есть пазы?"},
+    "has_holes": {"question": "Есть отверстия?"},
+}
+
 SERVICE_DESCRIPTION_PATTERNS = (
-    "по двум и более видам норм",
-    "свойства деталей",
-    "маркировка",
-    "консервация",
-    "упаковка",
-    "контроль",
-    "приемка",
-    "транспортирование",
-    "хранение",
-    "монтаж",
-    "эксплуатация",
-    "ремонт",
-    "материалы",
-    "технология производства",
-    "прочие",
-    "для деталей всего подкласса",
-    "для деталей всего класса",
+    'по двум и более видам норм',
+    'свойства деталей',
+    'маркировка',
+    'консервация',
+    'упаковка',
+    'контроль',
+    'приемка',
+    'транспортирование',
+    'хранение',
+    'монтаж',
+    'эксплуатация',
+    'ремонт',
+    'материалы',
+    'технология производства',
+    'прочие',
+    'для деталей всего подкласса',
+    'для деталей всего класса',
 )
 
 
@@ -53,6 +59,68 @@ class Node:
     description: str
     image: str | None
     children: list["Node"]
+
+
+def canonicalize_signature_text(value: str) -> str:
+    text = normalize_description_text(value)
+    text = re.sub(r"\b\d+(?:\s*,\s*\d+)?\b", "<num>", text)
+    text = re.sub(r"\b(?:вкл|включ|включительно)\b", "", text)
+    text = re.sub(r"\bмм\b", "мм", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,.-")
+    return text
+
+
+def build_subset_signature(subset: list[Node]) -> str:
+    parts = [canonicalize_signature_text(node.description) for node in subset]
+    parts.sort()
+    return " || ".join(parts)
+
+
+def build_parent_signature(parent_description: str, subset: list[Node]) -> str:
+    return f"{canonicalize_signature_text(parent_description)} => {build_subset_signature(subset)}"
+
+
+def summarize_pattern_groups(unresolved_entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for entry in unresolved_entries:
+        for subset in entry["unresolved"]:
+            signature = build_parent_signature(
+                entry["description"],
+                [Node(code=item["code"], description=item["description"], image=None, children=[]) for item in subset],
+            )
+            bucket = groups.setdefault(
+                signature,
+                {
+                    "signature": signature,
+                    "count": 0,
+                    "parents": [],
+                    "used_questions": set(),
+                    "example": {
+                        "parent_code": entry["code"],
+                        "parent_description": entry["description"],
+                        "subset": subset,
+                    },
+                },
+            )
+            bucket["count"] += 1
+            bucket["parents"].append(entry["code"])
+            bucket["used_questions"].update(entry.get("used_questions", []))
+
+    result = []
+    for bucket in groups.values():
+        result.append(
+            {
+                "signature": bucket["signature"],
+                "count": bucket["count"],
+                "parents": sorted(set(bucket["parents"])),
+                "used_questions": sorted(bucket["used_questions"]),
+                "example": bucket["example"],
+            }
+        )
+    result.sort(key=lambda item: (-item["count"], item["signature"]))
+    return result
+
+
 
 
 def normalize_text(value: str) -> str:
@@ -203,96 +271,122 @@ def set_feature_value(target: dict[str, bool], key: str, value: bool | None) -> 
 
 
 def map_clause_to_features(clause: str, features: dict[str, bool]) -> None:
-    if re.search(r"без центральн\w* отверст", clause):
+    if re.search("без центральн\w* отверст", clause):
         set_feature_value(features, "has_center_hole", False)
 
-    if re.search(r"кроме шар\w*", clause):
+    if re.search("кроме шар\w*", clause):
         set_feature_value(features, "is_sphere", False)
 
-    if re.search(r"шар\w*", clause) and not re.search(r"кроме шар\w*", clause):
+    if re.search("шар\w*", clause) and not re.search("кроме шар\w*", clause):
         set_feature_value(features, "is_sphere", True)
 
-    if re.search(r"сплошн\w*", clause):
+    if re.search("сплошн\w*", clause):
         set_feature_value(features, "is_hollow_sphere", False)
 
-    if re.search(r"пол\w*", clause):
+    if re.search("\bпол(?:ый|ая|ое|ые|ого|ой|ых)\w*", clause):
         set_feature_value(features, "is_hollow_sphere", True)
 
-    if re.search(r"без эл-?т\w* для подвески", clause):
+    if re.search("без эл-?т\w* для подвески", clause):
         set_feature_value(features, "has_suspension_element", False)
 
-    if re.search(r"с эл-?т\w* для подвески", clause):
+    if re.search("с эл-?т\w* для подвески", clause):
         set_feature_value(features, "has_suspension_element", True)
 
-    if re.search(r"без паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
+    if re.search("без местн\w* изгиб\w*", clause):
+        set_feature_value(features, "has_local_bends", False)
+
+    if re.search("с местн\w* изгиб\w*", clause):
+        set_feature_value(features, "has_local_bends", True)
+
+    if re.search("без паз\w*", clause) and not re.search("наружн\w* поверхност\w*|торц\w*|шлиц\w*", clause):
+        set_feature_value(features, "has_slots", False)
+
+    if re.search("с паз\w*", clause) and not re.search("наружн\w* поверхност\w*|торц\w*|шлиц\w*", clause):
+        set_feature_value(features, "has_slots", True)
+
+    if re.search("без отверст\w*", clause) and not re.search("центральн\w*|вне оси", clause):
+        set_feature_value(features, "has_holes", False)
+
+    if (re.search("с отверст\w*", clause) or re.search("и/или отверст\w*", clause)) and not re.search("центральн\w*|вне оси", clause):
+        set_feature_value(features, "has_holes", True)
+
+    if re.search("без паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
         set_feature_value(features, "has_hub_face_slots_or_lugs", False)
 
-    if re.search(r"с паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
+    if re.search("с паз\w* и выступ\w* на торц\w* ступиц\w*", clause):
         set_feature_value(features, "has_hub_face_slots_or_lugs", True)
 
-    if re.search(r"кроме кольцев\w*", clause):
+    if re.search("кроме кольцев\w*", clause):
         set_feature_value(features, "is_ring_sector", False)
 
-    if re.search(r"кольцев\w*", clause) and not re.search(r"кроме кольцев\w*", clause):
+    if re.search("кольцев\w*", clause) and not re.search("кроме кольцев\w*", clause):
         set_feature_value(features, "is_ring_sector", True)
 
-    if re.search(r"центральн\w* глух\w* отверст", clause) or re.search(r"глух\w* отверст", clause):
+    if re.search("центральн\w* глух\w* отверст", clause) or re.search("глух\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
         set_feature_value(features, "is_blind_hole", True)
 
-    if re.search(r"центральн\w* сквоз\w* отверст", clause) or re.search(r"сквоз\w* отверст", clause):
+    if re.search("центральн\w* сквоз\w* отверст", clause) or re.search("сквоз\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
         set_feature_value(features, "is_blind_hole", False)
 
-    if re.search(r"центральн\w* отверст", clause) and not re.search(r"без центральн\w* отверст", clause):
+    if re.search("центральн\w* отверст", clause) and not re.search("без центральн\w* отверст", clause):
         set_feature_value(features, "has_center_hole", True)
 
-    if re.search(r"без резьб", clause):
+    if re.search("без резьб", clause):
         set_feature_value(features, "has_thread_in_hole", False)
 
-    if re.search(r"с резьб", clause) or re.search(r"резьбов", clause):
+    if re.search("с резьб", clause) or re.search("резьбов", clause):
         set_feature_value(features, "has_thread_in_hole", True)
 
-    if re.search(r"ступенчат", clause):
+    if re.search("ступенчат", clause):
         set_feature_value(features, "is_stepped_hole", True)
 
-    if re.search(r"гладк", clause):
+    if re.search("гладк", clause):
         set_feature_value(features, "is_stepped_hole", False)
 
-    if re.search(r"некругл", clause):
+    if re.search("некругл", clause):
         set_feature_value(features, "is_round_hole", False)
 
-    if re.search(r"кругл", clause) and not re.search(r"некругл", clause):
+    if re.search("кругл", clause) and not re.search("некругл", clause):
         set_feature_value(features, "is_round_hole", True)
 
-    if re.search(r"без кольцев\w* паз\w* на торц", clause):
+    if re.search("без кольцев\w* паз\w* на торц", clause):
         set_feature_value(features, "has_face_ring_grooves", False)
 
-    if re.search(r"с кольцев\w* паз\w* на торц", clause):
+    if re.search("с кольцев\w* паз\w* на торц", clause):
         set_feature_value(features, "has_face_ring_grooves", True)
 
     if (
-        re.search(r"без паз\w* и шлиц\w* на наружн\w* поверхност", clause)
-        or re.search(r"без паз\w* шлиц\w* на наружн\w* поверхност", clause)
-        or re.search(r"без паз\w* на наружн\w* поверхност", clause)
-        or re.search(r"без шлиц\w* на наружн\w* поверхност", clause)
+        re.search("без паз\w* и шлиц\w* на наружн\w* поверхност", clause)
+        or re.search("без паз\w* шлиц\w* на наружн\w* поверхност", clause)
+        or re.search("без паз\w* на наружн\w* поверхност", clause)
+        or re.search("без шлиц\w* на наружн\w* поверхност", clause)
     ):
         set_feature_value(features, "has_outer_slots_or_splines", False)
 
     if (
-        re.search(r"с паз\w*(?:,?\s*шлиц\w*| и/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност", clause)
-        or re.search(r"с[о]?\s*шлиц\w* на наружн\w* поверхност", clause)
+        re.search("с паз\w*(?:,?\s*шлиц\w*| и/или шлиц\w*| шлиц\w*)? на наружн\w* поверхност", clause)
+        or re.search("с[о]?\s*шлиц\w* на наружн\w* поверхност", clause)
     ):
         set_feature_value(features, "has_outer_slots_or_splines", True)
 
-    if re.search(r"без отверст\w* вне оси", clause):
+    if re.search("без отверст\w* вне оси", clause):
         set_feature_value(features, "has_off_axis_holes", False)
 
-    if re.search(r"с отверст\w* вне оси", clause):
+    if re.search("с отверст\w* вне оси", clause):
         set_feature_value(features, "has_off_axis_holes", True)
 
 
+
 def extract_rotation_features(path_segments: list[str]) -> dict[str, bool]:
+    features: dict[str, bool] = {}
+    for clause in parse_clauses(path_segments):
+        map_clause_to_features(clause, features)
+    return features
+
+
+def extract_general_features(path_segments: list[str]) -> dict[str, bool]:
     features: dict[str, bool] = {}
     for clause in parse_clauses(path_segments):
         map_clause_to_features(clause, features)
@@ -514,6 +608,12 @@ def get_feature_split_rotation(nodes: list[Node], path_index: dict[str, list[str
     return evaluate_split(ROTATION_FEATURE_CATALOG, items, candidate_codes)
 
 
+def get_feature_split_general(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
+    candidate_codes = [node.code for node in nodes]
+    items = {node.code: extract_general_features(path_index[node.code]) for node in nodes}
+    return evaluate_split(GENERAL_FEATURE_CATALOG, items, candidate_codes)
+
+
 def resolve_group(
     nodes: list[Node],
     parent_code: str,
@@ -533,7 +633,8 @@ def resolve_group(
         explicit_split = get_explicit_split(subset, parent_code, adaptive_rules)
         module_split = get_module_split(subset, path_index)
         heuristic_split = get_feature_split_rotation(subset, path_index)
-        split = dynamic_split or explicit_split or module_split or heuristic_split
+        general_split = get_feature_split_general(subset, path_index)
+        split = dynamic_split or explicit_split or module_split or heuristic_split or general_split
 
         if not split:
             unresolved.append(subset)
@@ -587,6 +688,7 @@ def main() -> None:
     parser.add_argument("--root", default="71", help="Code prefix to analyze, default: 71")
     parser.add_argument("--limit", type=int, default=20, help="How many unresolved entries to print")
     parser.add_argument("--json", dest="json_path", help="Optional path for JSON report")
+    parser.add_argument("--pattern-limit", type=int, default=10, help="How many repeated unresolved patterns to print")
     parser.add_argument("--include-service", action="store_true", help="Keep service/normative branches in output")
     args = parser.parse_args()
 
@@ -637,6 +739,19 @@ def main() -> None:
     print(f"Unresolved manual-choice points: {len(unresolved_entries)}")
     print()
 
+    pattern_groups = summarize_pattern_groups(unresolved_entries)
+    print(f"Repeated unresolved patterns: {len(pattern_groups)}")
+    for pattern in pattern_groups[: args.pattern_limit]:
+        print(f"PATTERN x{pattern['count']}: {pattern['signature']}")
+        if pattern["used_questions"]:
+            print(f"  used: {', '.join(pattern['used_questions'])}")
+        print(f"  parents: {', '.join(pattern['parents'][:6])}")
+        if len(pattern['parents']) > 6:
+            print(f"  ... and {len(pattern['parents']) - 6} more")
+        example_subset = ", ".join(f"{item['code']} ({item['description']})" for item in pattern['example']['subset'])
+        print(f"  example: {pattern['example']['parent_code']} -> {example_subset}")
+        print()
+
     for entry in unresolved_entries[: args.limit]:
         print(f"{entry['code']} | {entry['description']}")
         if entry["used_questions"]:
@@ -648,7 +763,7 @@ def main() -> None:
 
     if args.json_path:
         report_path = Path(args.json_path)
-        report_path.write_text(json.dumps(unresolved_entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        report_path.write_text(json.dumps({"unresolved_entries": unresolved_entries, "pattern_groups": pattern_groups}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
