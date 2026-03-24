@@ -12,7 +12,7 @@ const reportSend = document.getElementById("reportSend");
 const reportComment = document.getElementById("reportComment");
 const reportStatus = document.getElementById("reportStatus");
 
-const BUG_REPORT_ENDPOINT = "";
+const BUG_REPORT_ENDPOINT = "https://script.google.com/macros/s/AKfycbwkNKlGmMsiHPkQWysy-T_O3jlmj_ui8IRjcwJoDzSE-Gii-bksZSJULds9DyaswStp/exec";
 
 const engine = createEskdEngine();
 
@@ -439,17 +439,14 @@ async function sendBugReport() {
   setReportStatus("\u041e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u044e...", "");
 
   try {
-    const response = await fetch(BUG_REPORT_ENDPOINT, {
+    await fetch(BUG_REPORT_ENDPOINT, {
       method: "POST",
+      mode: "no-cors",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "text/plain;charset=utf-8"
       },
       body: JSON.stringify(payload)
     });
-
-    if (!response.ok) {
-      throw new Error("request_failed");
-    }
 
     setReportStatus("\u0421\u043f\u0430\u0441\u0438\u0431\u043e, \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e", "is-success");
     setTimeout(() => {
