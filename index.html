@@ -38,12 +38,33 @@
 
         <div class="nav-row hidden" id="navRow">
           <button class="btn btn-quiet hidden" id="restartBtn" type="button">Начать заново</button>
+          <button class="report-trigger hidden" id="reportTrigger" type="button" aria-haspopup="dialog" aria-controls="reportModal" title="Сообщить об ошибке">
+            <span class="report-trigger-icon" aria-hidden="true">!</span>
+          </button>
           <div class="back-slot">
             <button class="btn btn-text" id="backBtn" type="button">Шаг назад</button>
           </div>
         </div>
       </section>
     </main>
+
+    <div class="report-modal hidden" id="reportModal" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+      <div class="report-modal-backdrop" id="reportBackdrop"></div>
+      <div class="report-panel">
+        <div class="report-header">
+          <h2 id="reportTitle">Сообщить об ошибке</h2>
+          <button class="report-close" id="reportClose" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <p class="report-note">Опишите, что пошло не так. Маршрут вопросов и текущий результат добавятся автоматически.</p>
+        <label class="report-label" for="reportComment">Комментарий</label>
+        <textarea id="reportComment" class="report-textarea" rows="5" placeholder="Например: на этом шаге система предложила неподходящие варианты"></textarea>
+        <div class="report-actions">
+          <button class="btn btn-quiet" id="reportCancel" type="button">Отмена</button>
+          <button class="btn" id="reportSend" type="button">Отправить</button>
+        </div>
+        <p class="report-status hidden" id="reportStatus"></p>
+      </div>
+    </div>
 
     <script src="classifier-engine.js"></script>
     <script src="app.js"></script>

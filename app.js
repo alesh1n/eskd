@@ -3,6 +3,16 @@ const answers = document.getElementById("answers");
 const navRow = document.getElementById("navRow");
 const backBtn = document.getElementById("backBtn");
 const restartBtn = document.getElementById("restartBtn");
+const reportTrigger = document.getElementById("reportTrigger");
+const reportModal = document.getElementById("reportModal");
+const reportBackdrop = document.getElementById("reportBackdrop");
+const reportClose = document.getElementById("reportClose");
+const reportCancel = document.getElementById("reportCancel");
+const reportSend = document.getElementById("reportSend");
+const reportComment = document.getElementById("reportComment");
+const reportStatus = document.getElementById("reportStatus");
+
+const BUG_REPORT_ENDPOINT = "";
 
 const engine = createEskdEngine();
 
@@ -33,7 +43,9 @@ function scrollToLatest() {
 function updateControlState() {
   const canGoBack = historyStack.length > 0;
   backBtn.disabled = !canGoBack;
+  backBtn.classList.toggle("hidden", !canGoBack);
   restartBtn.classList.toggle("hidden", !canGoBack);
+  reportTrigger.classList.toggle("hidden", !canGoBack);
 
   if (!canGoBack) {
     navRow.classList.add("hidden");
@@ -42,6 +54,15 @@ function updateControlState() {
 
   chat.appendChild(navRow);
   navRow.classList.remove("hidden");
+}
+
+function hideReportTrigger() {
+  reportTrigger.classList.add("hidden");
+}
+
+function showReportTrigger() {
+  reportTrigger.classList.remove("hidden");
+  scrollToLatest();
 }
 
 function captureSnapshot() {
@@ -162,11 +183,13 @@ function showResult(node) {
   }
   addMessage(`Описание: ${engine.getPathDescription(node.code) || node.description}`, "system");
   showButtons(false);
+  showReportTrigger();
 }
 
 function showNotFound() {
   addMessage("Подходящий децимальный номер не найден", "result");
   showButtons(false);
+  showReportTrigger();
 }
 
 function askAdaptiveQuestion(nodes) {
@@ -344,6 +367,103 @@ function handleAnswerSelection(index) {
   handleTreeOption(option);
 }
 
+
+function getChatTranscript() {
+  return Array.from(chat.querySelectorAll(".message")).map((message) => ({
+    role: message.classList.contains("message-user") ? "user" : "system",
+    text: message.textContent.trim()
+  })).filter((entry) => entry.text);
+}
+
+function getCurrentResultText() {
+  const resultBubble = Array.from(chat.querySelectorAll(".message-result")).at(-1);
+  return resultBubble ? resultBubble.textContent.trim() : "";
+}
+
+function setReportStatus(text, type = "") {
+  reportStatus.textContent = text;
+  reportStatus.classList.remove("hidden", "is-error", "is-success");
+  if (type) {
+    reportStatus.classList.add(type);
+  }
+}
+
+function resetReportStatus() {
+  reportStatus.textContent = "";
+  reportStatus.classList.add("hidden");
+  reportStatus.classList.remove("is-error", "is-success");
+}
+
+function openReportModal() {
+  resetReportStatus();
+  reportComment.value = "";
+  reportModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(() => reportComment.focus());
+}
+
+function closeReportModal() {
+  reportModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  resetReportStatus();
+}
+
+function buildBugReportPayload(comment) {
+  return {
+    comment,
+    page: window.location.href,
+    referrer: document.referrer,
+    userAgent: navigator.userAgent,
+    timestamp: new Date().toISOString(),
+    result: getCurrentResultText(),
+    transcript: getChatTranscript()
+  };
+}
+
+async function sendBugReport() {
+  const comment = reportComment.value.trim();
+  if (!comment) {
+    setReportStatus("\u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043e\u043f\u0438\u0448\u0438\u0442\u0435 \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u0443", "is-error");
+    return;
+  }
+
+  if (!BUG_REPORT_ENDPOINT) {
+    setReportStatus("\u041d\u0443\u0436\u043d\u043e \u0443\u043a\u0430\u0437\u0430\u0442\u044c URL Google Apps Script \u0432 app.js", "is-error");
+    return;
+  }
+
+  const payload = buildBugReportPayload(comment);
+  reportSend.disabled = true;
+  reportCancel.disabled = true;
+  reportClose.disabled = true;
+  setReportStatus("\u041e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u044e...", "");
+
+  try {
+    const response = await fetch(BUG_REPORT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error("request_failed");
+    }
+
+    setReportStatus("\u0421\u043f\u0430\u0441\u0438\u0431\u043e, \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e", "is-success");
+    setTimeout(() => {
+      closeReportModal();
+    }, 900);
+  } catch (error) {
+    setReportStatus("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435", "is-error");
+  } finally {
+    reportSend.disabled = false;
+    reportCancel.disabled = false;
+    reportClose.disabled = false;
+  }
+}
+
 function startDialog() {
   chat.innerHTML = "";
   answers.innerHTML = "";
@@ -400,3 +520,15 @@ backBtn.addEventListener("click", goBack);
 restartBtn.addEventListener("click", startDialog);
 
 
+
+reportTrigger.addEventListener("click", openReportModal);
+reportBackdrop.addEventListener("click", closeReportModal);
+reportClose.addEventListener("click", closeReportModal);
+reportCancel.addEventListener("click", closeReportModal);
+reportSend.addEventListener("click", sendBugReport);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !reportModal.classList.contains("hidden")) {
+    closeReportModal();
+  }
+});
