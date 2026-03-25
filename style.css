@@ -528,3 +528,10 @@ body.modal-open {
     padding: 16px;
   }
 }
+
+.message-news a {
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-word;
+}
+

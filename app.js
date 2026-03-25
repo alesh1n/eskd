@@ -18,6 +18,7 @@ const engine = createEskdEngine();
 
 let currentAnswerOptions = [];
 let historyStack = [];
+let newsText = "";
 
 function scrollToLatest() {
   requestAnimationFrame(() => {
@@ -131,6 +132,52 @@ function addImageMessage(src, alt) {
   scrollToLatest();
 }
 
+function appendLinkedText(container, text) {
+  const normalizedText = String(text || "").replace(/\r\n/g, "\n");
+  const lines = normalizedText.split("\n");
+  const tokenPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)/g;
+
+  lines.forEach((line, lineIndex) => {
+    let lastIndex = 0;
+    let match;
+
+    while ((match = tokenPattern.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        container.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
+      }
+
+      const link = document.createElement("a");
+      link.href = match[2] || match[3];
+      link.textContent = match[1] || match[3];
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      container.appendChild(link);
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < line.length) {
+      container.appendChild(document.createTextNode(line.slice(lastIndex)));
+    }
+
+    if (lineIndex < lines.length - 1) {
+      container.appendChild(document.createElement("br"));
+    }
+  });
+}
+
+function addNewsMessage(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) {
+    return;
+  }
+
+  const bubble = document.createElement("div");
+  bubble.className = "message message-system message-news";
+  appendLinkedText(bubble, trimmed);
+  chat.appendChild(bubble);
+  scrollToLatest();
+}
+
 function setAnswerOptions(options) {
   currentAnswerOptions = options;
   answers.innerHTML = "";
@@ -182,6 +229,7 @@ function showResult(node) {
     addImageMessage(node.image, node.description);
   }
   addMessage(`Описание: ${engine.getPathDescription(node.code) || node.description}`, "system");
+  addNewsMessage(newsText);
   showButtons(false);
   showReportTrigger();
 }
@@ -492,9 +540,13 @@ Promise.all([
   fetch("adaptive_rules.json").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить adaptive_rules.json");
     return res.json();
-  })
+  }),
+  fetch("news.txt")
+    .then((res) => (res.ok ? res.text() : ""))
+    .catch(() => "")
 ])
-  .then(([treeData, flowData, adaptiveData]) => {
+  .then(([treeData, flowData, adaptiveData, loadedNews]) => {
+    newsText = String(loadedNews || "").trim();
     engine.loadData(treeData, flowData, adaptiveData);
     startDialog();
   })
@@ -529,3 +581,5 @@ document.addEventListener("keydown", (event) => {
     closeReportModal();
   }
 });
+
+
