@@ -14,20 +14,26 @@ FILES = [
 ]
 JSON_TEXT_KEYS = {"text", "label", "userText", "question", "trueLabel", "falseLabel", "trueUserText", "falseUserText"}
 UNICODE_REPLACEMENT_CHAR = "\ufffd"
-MOJIBAKE_MARKERS = ["\u00d0", "\u00d1", "\u0420", "\u0421"]
+MOJIBAKE_SEQUENCES = [
+    "??", "??", "??", "??", "??", "??", "??", "??", "??",
+    "??", "??", "??", "??", "??", "??", "??", "??", "??",
+    "??", "??", "??", "??", "??", "??", "??", "??", "??",
+    "?", "?",
+]
 
 
 def has_mojibake(text: str) -> bool:
+    if not text:
+        return False
     if UNICODE_REPLACEMENT_CHAR in text:
         return True
-    encoded = text.encode("unicode_escape").decode("ascii")
     if "???" in text:
         return True
-    return any(marker in encoded for marker in MOJIBAKE_MARKERS)
+    return any(seq in text for seq in MOJIBAKE_SEQUENCES)
 
 
-def collect_json_strings(value, path="$"):
-    found = []
+def collect_json_strings(value, path: str = "$"):
+    found: list[tuple[str, str]] = []
     if isinstance(value, dict):
         for key, item in value.items():
             next_path = f"{path}.{key}"
@@ -41,7 +47,7 @@ def collect_json_strings(value, path="$"):
 
 
 def check_json_file(path: Path):
-    issues = []
+    issues: list[tuple[str, str]] = []
     data = json.loads(path.read_text(encoding="utf-8"))
     for key_path, text in collect_json_strings(data):
         if has_mojibake(text):
@@ -50,15 +56,15 @@ def check_json_file(path: Path):
 
 
 def check_text_file(path: Path):
-    issues = []
+    issues: list[tuple[str, str]] = []
     for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if has_mojibake(line):
             issues.append((f"{path}:{line_no}", line.strip()))
     return issues
 
 
-def main():
-    issues = []
+def main() -> int:
+    issues: list[tuple[str, str]] = []
     for path in FILES:
         if not path.exists():
             continue
@@ -73,7 +79,8 @@ def main():
 
     print("Potential encoding issues found:")
     for location, snippet in issues:
-        print(f"- {location}: {snippet}")
+        safe_snippet = snippet.encode("unicode_escape").decode("ascii")
+        print(f"- {location}: {safe_snippet}")
     return 1
 
 

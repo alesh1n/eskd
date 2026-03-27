@@ -30,6 +30,8 @@ GENERAL_FEATURE_CATALOG = {
     "has_local_bends": {"question": "Есть местные изгибы?"},
     "has_slots": {"question": "Есть пазы?"},
     "has_holes": {"question": "Есть отверстия?"},
+    "has_cooling_ribs": {"question": "\u0415\u0441\u0442\u044c \u0440\u0435\u0431\u0440\u0430 \u043e\u0445\u043b\u0430\u0436\u0434\u0435\u043d\u0438\u044f \u043d\u0430 \u043d\u0430\u0440\u0443\u0436\u043d\u043e\u0439 \u043f\u043e\u0432\u0435\u0440\u0445\u043d\u043e\u0441\u0442\u0438?"},
+    "base_hole_orientation_parallel": {"question": "\u0411\u0430\u0437\u043e\u0432\u044b\u0435 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\u0438\u044f \u043f\u0430\u0440\u0430\u043b\u043b\u0435\u043b\u044c\u043d\u044b\u0435?"},
 }
 
 SERVICE_DESCRIPTION_PATTERNS = (
@@ -386,10 +388,29 @@ def extract_rotation_features(path_segments: list[str]) -> dict[str, bool]:
     return features
 
 
-def extract_general_features(path_segments: list[str]) -> dict[str, bool]:
-    features: dict[str, bool] = {}
+def extract_general_features(path_segments: list[str]) -> dict[str, Any]:
+    features: dict[str, Any] = {}
     for clause in parse_clauses(path_segments):
         map_clause_to_features(clause, features)
+
+    leaf_segment = normalize_description_text(path_segments[-1] if path_segments else "")
+    if re.search("\u043a\u043e\u043c\u0431\u0438\u043d\u0438\u0440", leaf_segment):
+        features["base_hole_kind"] = "combined"
+    elif re.search("\u0441\u043a\u0432\u043e\u0437", leaf_segment):
+        features["base_hole_kind"] = "through"
+    elif re.search("\u0433\u043b\u0443\u0445", leaf_segment):
+        features["base_hole_kind"] = "blind"
+
+    if re.search("\u0431\u0435\u0437 \u0440\u0435\u0431\u0435\u0440 \u043e\u0445\u043b\u0430\u0436\u0434\u0435\u043d\u0438\u044f", leaf_segment):
+        features["has_cooling_ribs"] = False
+    elif re.search("\u0441 \u0440\u0435\u0431\u0440\u0430\u043c\u0438 \u043e\u0445\u043b\u0430\u0436\u0434\u0435\u043d\u0438\u044f", leaf_segment):
+        features["has_cooling_ribs"] = True
+
+    if re.search("\u043d\u0435\u043f\u0430\u0440\u0430\u043b", leaf_segment):
+        features["base_hole_orientation_parallel"] = False
+    elif re.search("\u043f\u0430\u0440\u0430\u043b", leaf_segment) and not re.search(r"\u043f\u0430\u0440\u0430\u043b\.\s*\u0438\s*\u043d\u0435\u043f\u0430\u0440\u0430\u043b", leaf_segment):
+        features["base_hole_orientation_parallel"] = True
+
     return features
 
 
@@ -542,6 +563,40 @@ def get_explicit_split(nodes: list[Node], parent_code: str, adaptive_rules: dict
     return evaluate_split(rule["features"], rule["items"], candidate_codes)
 
 
+GENERAL_ENUM_FEATURE_CATALOG = {
+    "base_hole_kind": {
+        "question": "\u041a\u0430\u043a\u0438\u043c \u044f\u0432\u043b\u044f\u0435\u0442\u0441\u044f \u0431\u0430\u0437\u043e\u0432\u043e\u0435 \u043e\u0442\u0432\u0435\u0440\u0441\u0442\u0438\u0435?",
+        "order": ["blind", "through", "combined"],
+        "values": {
+            "blind": {"label": "\u0413\u043b\u0443\u0445\u043e\u0435"},
+            "through": {"label": "\u0421\u043a\u0432\u043e\u0437\u043d\u043e\u0435"},
+            "combined": {"label": "\u041a\u043e\u043c\u0431\u0438\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u043e\u0435"},
+        },
+    }
+}
+
+def build_enum_option_split(items: dict[str, dict[str, Any]], candidate_codes: list[str], feature_key: str, definition: dict[str, Any]) -> dict[str, Any] | None:
+    buckets: dict[str, list[str]] = {}
+    for code in candidate_codes:
+        value = items.get(code, {}).get(feature_key)
+        if not value or value not in definition["values"]:
+            return None
+        buckets.setdefault(value, []).append(code)
+
+    if len(buckets) < 2 or len(buckets) > 4:
+        return None
+
+    ordered_values = [value for value in definition["order"] if value in buckets]
+    return {
+        "feature_key": feature_key,
+        "question": definition["question"],
+        "mode": "options",
+        "options": [
+            {"label": definition["values"][value]["label"], "codes": buckets[value]}
+            for value in ordered_values
+        ],
+    }
+
 def format_module_value(value: float) -> str:
     return str(value).replace('.', ',')
 
@@ -611,6 +666,9 @@ def get_feature_split_rotation(nodes: list[Node], path_index: dict[str, list[str
 def get_feature_split_general(nodes: list[Node], path_index: dict[str, list[str]]) -> dict[str, Any] | None:
     candidate_codes = [node.code for node in nodes]
     items = {node.code: extract_general_features(path_index[node.code]) for node in nodes}
+    enum_split = build_enum_option_split(items, candidate_codes, "base_hole_kind", GENERAL_ENUM_FEATURE_CATALOG["base_hole_kind"])
+    if enum_split:
+        return enum_split
     return evaluate_split(GENERAL_FEATURE_CATALOG, items, candidate_codes)
 
 
