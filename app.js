@@ -541,7 +541,7 @@ Promise.all([
     if (!res.ok) throw new Error("Не удалось загрузить adaptive_rules.json");
     return res.json();
   }),
-  fetch("news.txt?v=20260401-2")
+  fetch("news.txt?v=20260926-1")
     .then((res) => (res.ok ? res.text() : ""))
     .catch(() => "")
 ])
