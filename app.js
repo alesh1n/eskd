@@ -533,7 +533,7 @@ Promise.all([
     if (!res.ok) throw new Error("Не удалось загрузить eskd_tree.json");
     return res.json();
   }),
-  fetch("question_flow.json?v=20260401-2").then((res) => {
+  fetch("question_flow.json?v=20260927-1").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить question_flow.json");
     return res.json();
   }),
@@ -541,7 +541,7 @@ Promise.all([
     if (!res.ok) throw new Error("Не удалось загрузить adaptive_rules.json");
     return res.json();
   }),
-  fetch("news.txt?v=20260401-2")
+  fetch("news.txt?v=20260926-1")
     .then((res) => (res.ok ? res.text() : ""))
     .catch(() => "")
 ])
