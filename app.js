@@ -533,7 +533,7 @@ Promise.all([
     if (!res.ok) throw new Error("Не удалось загрузить eskd_tree.json");
     return res.json();
   }),
-  fetch("question_flow.json?v=20260927-3").then((res) => {
+  fetch("question_flow.json?v=20261017-1").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить question_flow.json");
     return res.json();
   }),
