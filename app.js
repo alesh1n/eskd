@@ -533,7 +533,11 @@ Promise.all([
     if (!res.ok) throw new Error("Не удалось загрузить eskd_tree.json");
     return res.json();
   }),
-  fetch("question_flow.json?v=20261017-1").then((res) => {
+  fetch("eskd_pevm_tree.json?v=20261017-1").then((res) => {
+    if (!res.ok) throw new Error("Не удалось загрузить eskd_pevm_tree.json");
+    return res.json();
+  }),
+  fetch("question_flow.json?v=20261017-2").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить question_flow.json");
     return res.json();
   }),
@@ -545,9 +549,9 @@ Promise.all([
     .then((res) => (res.ok ? res.text() : ""))
     .catch(() => "")
 ])
-  .then(([treeData, flowData, adaptiveData, loadedNews]) => {
+  .then(([treeData, pevmTreeData, flowData, adaptiveData, loadedNews]) => {
     newsText = String(loadedNews || "").trim();
-    engine.loadData(treeData, flowData, adaptiveData);
+    engine.loadData({ ...treeData, ...pevmTreeData }, flowData, adaptiveData);
     startDialog();
   })
   .catch(() => {
