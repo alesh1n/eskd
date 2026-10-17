@@ -1,4 +1,3 @@
-Warning: fs was declared with const; use let for reassignable variables.
 ﻿const chat = document.getElementById("chat");
 const answers = document.getElementById("answers");
 const navRow = document.getElementById("navRow");
