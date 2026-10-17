@@ -20,7 +20,14 @@ test("PEVM flow narrows the classifier to its branch instead of all roots", () =
   const engine = engineContext.createEskdEngine();
   engine.loadData({ ...classifierTree, ...pevmTree }, flow, adaptiveRules);
 
-  const pevmOption = flow.questions.assembly_domain.options.find((option) =>
+  const assemblyOption = flow.questions.object_kind.options.find((option) =>
+    option.label === "Сборка"
+  );
+  assert.ok(assemblyOption, "object_kind should offer assembly");
+  assert.equal(assemblyOption.next, "assembly_domain");
+  engine.applyFlowOption(assemblyOption);
+
+  const pevmOption = flow.questions[assemblyOption.next].options.find((option) =>
     option.label.includes("ПЭВМ")
   );
   assert.ok(pevmOption, "assembly_domain should offer the PEVM option");
