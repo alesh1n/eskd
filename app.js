@@ -311,19 +311,6 @@ function askTreeLevel(options) {
     return;
   }
 
-  if (options.length === 1) {
-    const [singleOption] = options;
-    const children = engine.getChildren(singleOption);
-
-    if (children.length === 0) {
-      showResult(singleOption);
-      return;
-    }
-
-    askTreeLevel(children);
-    return;
-  }
-
   const areLeaves = options.every((node) => engine.getChildren(node).length === 0);
   if (areLeaves && askAdaptiveQuestion(options)) {
     return;
@@ -342,7 +329,18 @@ function askTreeLevel(options) {
 }
 
 function startTreeSelection() {
-  askTreeLevel(engine.getRestrictedRoots());
+  const roots = engine.getRestrictedRoots();
+  const activePrefixes = new Set(engine.exportState().activeBranchPrefixes || []);
+  const options = roots.flatMap((node) => {
+    if (!activePrefixes.has(node.code)) {
+      return [node];
+    }
+
+    const children = engine.getChildren(node);
+    return children.length > 0 ? children : [node];
+  });
+
+  askTreeLevel(options);
 }
 
 function askFlowQuestion(questionId) {
