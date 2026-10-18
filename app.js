@@ -19,6 +19,10 @@ const engine = createEskdEngine();
 let currentAnswerOptions = [];
 let historyStack = [];
 let newsText = "";
+let questionFlowData = null;
+let classifierLoadPromise = null;
+let pendingFlowOptions = [];
+let dialogRevision = 0;
 
 function scrollToLatest() {
   requestAnimationFrame(() => {
@@ -74,6 +78,7 @@ function captureSnapshot() {
     answersHtml: answers.innerHTML,
     answersHidden: answers.classList.contains("hidden"),
     currentAnswerOptions: [...currentAnswerOptions],
+    pendingFlowOptions: [...pendingFlowOptions],
     engineState: engine.exportState()
   };
 }
@@ -82,6 +87,7 @@ function restoreSnapshot(snapshot) {
   chat.innerHTML = snapshot.messagesHtml;
   answers.innerHTML = snapshot.answersHtml;
   currentAnswerOptions = [...snapshot.currentAnswerOptions];
+  pendingFlowOptions = [...(snapshot.pendingFlowOptions || [])];
   engine.importState(snapshot.engineState || {});
 
   if (snapshot.answersHidden) {
@@ -105,6 +111,7 @@ function goBack() {
     return;
   }
 
+  dialogRevision += 1;
   const snapshot = historyStack.pop();
   restoreSnapshot(snapshot);
 }
@@ -115,6 +122,7 @@ function addMessage(text, type) {
   bubble.textContent = text;
   chat.appendChild(bubble);
   scrollToLatest();
+  return bubble;
 }
 
 function addImageMessage(src, alt) {
@@ -344,7 +352,7 @@ function startTreeSelection() {
 }
 
 function askFlowQuestion(questionId) {
-  const question = engine.getFlowQuestion(questionId);
+  const question = questionFlowData?.questions?.[questionId] || engine.getFlowQuestion(questionId);
   if (!question) {
     startTreeSelection();
     return;
@@ -360,9 +368,35 @@ function askFlowQuestion(questionId) {
   showButtons(true);
 }
 
-function handleFlowOption(option) {
+async function handleFlowOption(option) {
   addMessage(option.userText || option.label, "user");
-  engine.applyFlowOption(option);
+
+  if (!engine.isReady()) {
+    pendingFlowOptions.push(option);
+    if (option.next && questionFlowData?.questions?.[option.next]) {
+      askFlowQuestion(option.next);
+      return;
+    }
+
+    const revision = dialogRevision;
+    const loadingMessage = addMessage("Загружаю классификатор…", "system");
+    try {
+      const classifierLoaded = await classifierLoadPromise;
+    } catch (error) {
+      if (revision === dialogRevision) loadingMessage.remove();
+      return;
+    }
+
+    if (revision !== dialogRevision) return;
+    loadingMessage.remove();
+    if (!classifierLoaded || !engine.isReady()) return;
+    pendingFlowOptions.forEach((pendingOption) => engine.applyFlowOption(pendingOption));
+    pendingFlowOptions = [];
+  } else {
+    pendingFlowOptions.forEach((pendingOption) => engine.applyFlowOption(pendingOption));
+    pendingFlowOptions = [];
+    engine.applyFlowOption(option);
+  }
 
   if (!option.next || option.next === "tree") {
     startTreeSelection();
@@ -508,33 +542,41 @@ async function sendBugReport() {
 }
 
 function startDialog() {
+  dialogRevision += 1;
   chat.innerHTML = "";
   answers.innerHTML = "";
   answers.classList.add("hidden");
   navRow.classList.add("hidden");
   currentAnswerOptions = [];
   historyStack = [];
+  pendingFlowOptions = [];
   engine.resetState();
   updateControlState();
 
-  if (!engine.isReady()) {
-    addMessage("Не удалось загрузить данные классификатора", "system");
+  if (!questionFlowData) {
+    addMessage("Загружаю вопросы…", "system");
     return;
   }
 
   addMessage("Привет! Давай определим подходящий децимальный номер по нескольким вопросам.", "system");
-  askFlowQuestion(engine.getStartQuestionId());
+  askFlowQuestion(questionFlowData.start);
 }
 
-Promise.all([
+const questionFlowPromise = fetch("question_flow.json?v=20261017-2").then((res) => {
+  if (!res.ok) throw new Error("Не удалось загрузить question_flow.json");
+  return res.json();
+});
+questionFlowPromise.then((flowData) => {
+  questionFlowData = flowData;
+  startDialog();
+}).catch(() => {});
+
+classifierLoadPromise = Promise.all([
   fetch("eskd_tree.json?v=20261017-1").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить eskd_tree.json");
     return res.json();
   }),
-  fetch("question_flow.json?v=20261017-2").then((res) => {
-    if (!res.ok) throw new Error("Не удалось загрузить question_flow.json");
-    return res.json();
-  }),
+  questionFlowPromise,
   fetch("adaptive_rules.json?v=20260401-2").then((res) => {
     if (!res.ok) throw new Error("Не удалось загрузить adaptive_rules.json");
     return res.json();
@@ -546,12 +588,13 @@ Promise.all([
   .then(([treeData, flowData, adaptiveData, loadedNews]) => {
     newsText = String(loadedNews || "").trim();
     engine.loadData(treeData, flowData, adaptiveData);
-    startDialog();
+    return true;
   })
   .catch(() => {
     addMessage("Ошибка загрузки данных классификатора", "system");
     answers.classList.add("hidden");
     updateControlState();
+    return false;
   });
 
 answers.addEventListener("click", (event) => {
