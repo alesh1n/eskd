@@ -68,6 +68,19 @@ body {
   letter-spacing: -0.02em;
 }
 
+.title-online {
+  color: #6b7280;
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.title-divider {
+  color: #a8afb9;
+  font-weight: 400;
+  margin: 0 0.2em;
+}
+
 .subtitle {
   margin: 8px 0 0;
   color: var(--muted);
