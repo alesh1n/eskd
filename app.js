@@ -319,6 +319,14 @@ function askTreeLevel(options) {
     return;
   }
 
+  if (options.length === 1) {
+    const children = engine.getChildren(options[0]);
+    if (children.length > 0) {
+      askTreeLevel(children);
+      return;
+    }
+  }
+
   const areLeaves = options.every((node) => engine.getChildren(node).length === 0);
   if (areLeaves && askAdaptiveQuestion(options)) {
     return;
@@ -337,8 +345,35 @@ function askTreeLevel(options) {
 }
 
 function startTreeSelection() {
+  const state = engine.exportState();
   const roots = engine.getRestrictedRoots();
-  const activePrefixes = new Set(engine.exportState().activeBranchPrefixes || []);
+  const activePrefixes = new Set(state.activeBranchPrefixes || []);
+
+  const isDocumentFilterActive = state.activeFilters.some((filter) => (
+    (filter.includeAny || []).includes("документ")
+  ));
+  if (
+    isDocumentFilterActive
+    && activePrefixes.size > 1
+    && roots.length > 1
+    && roots.every((node) => activePrefixes.has(node.code))
+  ) {
+    const detailPrefixes = new Set(["71", "72", "73", "74", "75", "76"]);
+    const isDetailSelection = [...activePrefixes].every((prefix) => detailPrefixes.has(prefix));
+    addMessage(
+      isDetailSelection ? "К какой группе деталей относится документ?" : "К какой группе изделий относится документ?",
+      "system"
+    );
+    setAnswerOptions(roots.map((node) => ({
+      type: "tree",
+      node,
+      label: `${node.code} - ${node.description}`,
+      image: node.image
+    })));
+    showButtons(true);
+    return;
+  }
+
   const options = roots.flatMap((node) => {
     if (!activePrefixes.has(node.code)) {
       return [node];
